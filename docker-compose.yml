@@ -51,6 +51,19 @@ services:
     depends_on:
       - redis
 
+  worker-sped-merge:
+    profiles: ["sped"]
+    build:
+      context: ..
+      dockerfile: webapp-01/docker/Dockerfile.worker-sped-merge
+    environment:
+      REDIS_URL: redis://redis:6379
+      TEMP_JOBS_ROOT: /data/jobs
+    volumes:
+      - job-data:/data/jobs
+    depends_on:
+      - redis
+
 volumes:
   redis-data:
   job-data:

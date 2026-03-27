@@ -1,6 +1,12 @@
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { QUEUE_NAME, SPED_QUEUE_NAME, type SpedJobPayload } from "@webapp/contracts";
+import {
+  QUEUE_NAME,
+  SPED_MERGE_QUEUE_NAME,
+  SPED_QUEUE_NAME,
+  type SpedJobPayload,
+  type SpedMergeJobPayload,
+} from "@webapp/contracts";
 import type { Env } from "./env.js";
 
 export type NfeJobPayload = {
@@ -9,11 +15,12 @@ export type NfeJobPayload = {
   outputPath: string;
 };
 
-export type { SpedJobPayload };
+export type { SpedJobPayload, SpedMergeJobPayload };
 
 let connection: Redis | null = null;
 let queue: Queue<NfeJobPayload> | null = null;
 let spedQueue: Queue<SpedJobPayload> | null = null;
+let spedMergeQueue: Queue<SpedMergeJobPayload> | null = null;
 
 export function getRedis(env: Env): Redis {
   if (!connection) {
@@ -52,4 +59,18 @@ export function getSpedQueue(env: Env): Queue<SpedJobPayload> {
     });
   }
   return spedQueue;
+}
+
+export function getSpedMergeQueue(env: Env): Queue<SpedMergeJobPayload> {
+  if (!spedMergeQueue) {
+    spedMergeQueue = new Queue<SpedMergeJobPayload>(SPED_MERGE_QUEUE_NAME, {
+      connection: getRedis(env),
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: { count: 200 },
+        removeOnFail: { count: 100 },
+      },
+    });
+  }
+  return spedMergeQueue;
 }

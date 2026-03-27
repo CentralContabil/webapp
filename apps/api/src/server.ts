@@ -10,7 +10,15 @@ import { API_PREFIX } from "@webapp/contracts";
 import { getOutName } from "@webapp/nfe-core";
 import { loadEnv } from "./env.js";
 import { collectXmlFiles, extractZipSafe } from "./fs-utils.js";
-import { getQueue, getRedis, getSpedQueue, type NfeJobPayload, type SpedJobPayload } from "./queue.js";
+import {
+  getQueue,
+  getRedis,
+  getSpedMergeQueue,
+  getSpedQueue,
+  type NfeJobPayload,
+  type SpedJobPayload,
+  type SpedMergeJobPayload,
+} from "./queue.js";
 import { signDownloadToken, verifyDownloadToken } from "./tokens.js";
 
 const env = loadEnv();
@@ -49,6 +57,7 @@ app.setErrorHandler((err, req, reply) => {
 
 const queue = getQueue(env);
 const spedQueue = getSpedQueue(env);
+const spedMergeQueue = getSpedMergeQueue(env);
 
 function jobDir(id: string): string {
   /** Absoluto para o payload BullMQ: o worker/Python usa outro cwd e paths relativos quebram (ex.: SPED). */
@@ -81,6 +90,15 @@ app.get(`${API_PREFIX}/tools`, async () => ({
       subtitle: "EFD Contribuições / ICMS-IPI",
       description: "Conversão de arquivo SPED .txt em planilha por registro.",
       route: "/tools/sped",
+      available: true,
+    },
+    {
+      id: "webapp-03",
+      title: "XLSX → SPED",
+      subtitle: "Mescla planilha editada no .txt",
+      description:
+        "Envie o SPED original e o XLSX (com coluna _LINHA) gerado pela ferramenta SPED→XLSX; baixe o .txt atualizado.",
+      route: "/tools/sped-merge",
       available: true,
     },
   ],
@@ -351,8 +369,8 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
     if (!claims || claims.jobId !== id) {
       return reply.code(401).send({ error: "Token inválido" });
     }
-    if (claims.tool === "sped") {
-      return reply.code(401).send({ error: "Use o endpoint de download SPED" });
+    if (claims.tool === "sped" || claims.tool === "sped-merge") {
+      return reply.code(401).send({ error: "Use o endpoint de download da ferramenta SPED" });
     }
 
     const job = await queue.getJob(id);
@@ -401,6 +419,172 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
 
     const stream = fs.createReadStream(outPath);
     reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const fn = claims.fileName.replace(/[\r\n"]/g, "_");
+    const asciiFallback = fn.replace(/[^\x20-\x7e]/g, "_");
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fn)}`
+    );
+    return reply.send(stream);
+  }
+);
+
+app.post(`${API_PREFIX}/tools/sped-merge/jobs`, async (req, reply) => {
+  const jobId = randomUUID();
+  const inDir = path.join(jobDir(jobId), "in");
+  const outDir = path.join(jobDir(jobId), "out");
+
+  try {
+    const pong = await getRedis(env).ping();
+    if (pong !== "PONG") throw new Error("Redis não respondeu");
+  } catch (e) {
+    req.log.warn({ err: e }, "redis indisponível ao criar job SPED merge");
+    return reply.code(503).send({
+      error:
+        "Redis não está acessível. Inicie o Redis e o worker SPED merge (worker-sped-merge-bridge + Python webapp-03).",
+    });
+  }
+
+  await fs.promises.mkdir(inDir, { recursive: true });
+  await fs.promises.mkdir(outDir, { recursive: true });
+
+  let totalBytes = 0;
+  let gotSped = false;
+  let gotXlsx = false;
+  const parts = req.parts();
+  for await (const part of parts) {
+    if (part.type !== "file") continue;
+    const field = (part as { fieldname?: string }).fieldname ?? "";
+    const name = (part.filename ?? "file").replace(/[/\\]/g, "_");
+    const lower = name.toLowerCase();
+    const buf = await part.toBuffer();
+    totalBytes += buf.length;
+    if (totalBytes > env.MAX_UPLOAD_MB * 1024 * 1024) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      return reply.code(413).send({ error: "Payload muito grande" });
+    }
+
+    if (field === "sped" || (!gotSped && lower.endsWith(".txt"))) {
+      if (!lower.endsWith(".txt")) {
+        await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+        return reply.code(400).send({ error: "O arquivo SPED deve ser .txt" });
+      }
+      await fs.promises.writeFile(path.join(inDir, "sped.txt"), buf);
+      gotSped = true;
+      continue;
+    }
+    if (field === "xlsx" || (!gotXlsx && (lower.endsWith(".xlsx") || lower.endsWith(".xlsm")))) {
+      if (!lower.endsWith(".xlsx") && !lower.endsWith(".xlsm")) {
+        await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+        return reply.code(400).send({ error: "A planilha deve ser .xlsx" });
+      }
+      await fs.promises.writeFile(path.join(inDir, "planilha.xlsx"), buf);
+      gotXlsx = true;
+      continue;
+    }
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply.code(400).send({ error: "Use os campos sped (.txt) e xlsx (.xlsx)." });
+  }
+
+  if (!gotSped || !gotXlsx) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply.code(400).send({ error: "Envie o SPED .txt e o XLSX (dois arquivos)." });
+  }
+
+  const spedPath = path.join(inDir, "sped.txt");
+  const xlsxPath = path.join(inDir, "planilha.xlsx");
+  const outputPath = path.join(outDir, "SPED_mesclado.txt");
+
+  try {
+    await Promise.race([
+      spedMergeQueue.add(
+        "merge",
+        {
+          jobId,
+          spedPath,
+          xlsxPath,
+          outputPath,
+        } satisfies SpedMergeJobPayload,
+        { jobId }
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Fila timeout")), 15_000)
+      ),
+    ]);
+  } catch (e) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    req.log.error({ err: e }, "falha ao enfileirar job SPED merge");
+    return reply.code(503).send({
+      error:
+        "Não foi possível enfileirar o job. Verifique Redis e se o worker-sped-merge-bridge está rodando.",
+    });
+  }
+
+  return reply.code(202).send({ id: jobId, status: "queued" as const });
+});
+
+app.get<{ Params: { id: string } }>(`${API_PREFIX}/tools/sped-merge/jobs/:id`, async (req, reply) => {
+  const { id } = req.params;
+  const job = await spedMergeQueue.getJob(id);
+  if (!job) {
+    return reply.code(404).send({
+      id,
+      status: "not_found" as const,
+    });
+  }
+  const state = await job.getState();
+  const status = mapBullState(state);
+  const progress =
+    typeof job.progress === "number" ? Math.round(job.progress) : undefined;
+
+  let downloadToken: string | undefined;
+  let fileName: string | undefined;
+  let error: string | undefined;
+
+  if (status === "done") {
+    const rv = job.returnvalue as { fileName?: string } | undefined;
+    fileName =
+      rv?.fileName ?? path.basename(String((job.data as SpedMergeJobPayload).outputPath ?? "SPED_mesclado.txt"));
+    downloadToken = await signDownloadToken(env, id, fileName, "sped-merge");
+  }
+  if (status === "failed") {
+    error = job.failedReason?.slice(0, 500) ?? "Falha no processamento";
+  }
+
+  return {
+    id,
+    status,
+    progress,
+    error,
+    downloadToken,
+    fileName,
+  };
+});
+
+app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
+  `${API_PREFIX}/tools/sped-merge/jobs/:id/download`,
+  async (req, reply) => {
+    const { id } = req.params;
+    const token = req.query.token;
+    if (!token) return reply.code(401).send({ error: "Token ausente" });
+
+    const claims = await verifyDownloadToken(env, token);
+    if (!claims || claims.jobId !== id || claims.tool !== "sped-merge") {
+      return reply.code(401).send({ error: "Token inválido" });
+    }
+
+    const job = await spedMergeQueue.getJob(id);
+    if (!job || (await job.getState()) !== "completed") {
+      return reply.code(404).send({ error: "Job não concluído" });
+    }
+
+    const outPath = (job.data as SpedMergeJobPayload).outputPath;
+    if (!outPath || !fs.existsSync(outPath)) {
+      return reply.code(404).send({ error: "Arquivo não encontrado" });
+    }
+
+    const stream = fs.createReadStream(outPath);
+    reply.header("Content-Type", "text/plain; charset=utf-8");
     const fn = claims.fileName.replace(/[\r\n"]/g, "_");
     const asciiFallback = fn.replace(/[^\x20-\x7e]/g, "_");
     reply.header(

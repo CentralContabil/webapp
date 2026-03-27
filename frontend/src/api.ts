@@ -29,14 +29,33 @@ export type ToolManifestEntry = {
   available: boolean;
 };
 
+function mergeToolsManifest(
+  apiList: ToolManifestEntry[] | undefined,
+  fallback: ToolManifestEntry[]
+): ToolManifestEntry[] {
+  const api = Array.isArray(apiList) ? apiList : [];
+  const apiMap = new Map(api.map((t) => [t.id, t]));
+  const merged: ToolManifestEntry[] = [];
+  for (const t of fallback) {
+    const o = apiMap.get(t.id);
+    merged.push(o ? { ...t, ...o } : t);
+  }
+  const fallbackIds = new Set(fallback.map((t) => t.id));
+  for (const t of api) {
+    if (!fallbackIds.has(t.id)) merged.push(t);
+  }
+  return merged;
+}
+
 export async function fetchToolsManifest(): Promise<ToolManifestEntry[]> {
+  const fallback = defaultToolsManifest();
   try {
     const res = await fetch(`${baseUrl()}${API_PREFIX}/tools`);
-    if (!res.ok) return defaultToolsManifest();
+    if (!res.ok) return fallback;
     const data = (await res.json()) as { tools?: ToolManifestEntry[] };
-    return Array.isArray(data.tools) && data.tools.length > 0 ? data.tools : defaultToolsManifest();
+    return mergeToolsManifest(data.tools, fallback);
   } catch {
-    return defaultToolsManifest();
+    return fallback;
   }
 }
 
@@ -56,6 +75,15 @@ function defaultToolsManifest(): ToolManifestEntry[] {
       subtitle: "EFD Contribuições / ICMS-IPI",
       description: "Envie um arquivo .txt SPED EFD e baixe a planilha por registro.",
       route: "/tools/sped",
+      available: true,
+    },
+    {
+      id: "webapp-03",
+      title: "XLSX → SPED",
+      subtitle: "Mescla planilha editada no .txt",
+      description:
+        "Envie o SPED original e o XLSX (com _LINHA) da ferramenta SPED→XLSX; baixe o .txt atualizado.",
+      route: "/tools/sped-merge",
       available: true,
     },
   ];
@@ -212,10 +240,76 @@ export async function getSpedJob(id: string): Promise<JobResponse> {
   return res.json() as Promise<JobResponse>;
 }
 
+export async function createSpedMergeJob(spedTxt: File, xlsx: File): Promise<{ id: string }> {
+  const fd = new FormData();
+  fd.append("sped", spedTxt);
+  fd.append("xlsx", xlsx);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped-merge/jobs`, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const aborted =
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (aborted) {
+      throw new Error(
+        `Envio excedeu ${Math.round(UPLOAD_TIMEOUT_MS / 60_000)} minutos. Verifique Redis, API e worker SPED merge (webapp-03).`
+      );
+    }
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    let msg = (err as { error?: string }).error ?? res.statusText;
+    const relative = !baseUrl();
+    if (
+      relative &&
+      (res.status === 500 || res.status === 502 || res.status === 503) &&
+      (msg === "Internal Server Error" || msg.length < 3)
+    ) {
+      msg =
+        "API ou worker SPED merge inativo. Na pasta webapp-01: npm run redis:up e npm run dev (inclui worker-sped-merge-bridge e Python webapp-03).";
+    }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function getSpedMergeJob(id: string): Promise<JobResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped-merge/jobs/${id}`);
+  } catch (e) {
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  }
+  return res.json() as Promise<JobResponse>;
+}
+
 export function downloadUrl(id: string, token: string): string {
   return `${baseUrl()}${API_PREFIX}/jobs/${id}/download?token=${encodeURIComponent(token)}`;
 }
 
 export function spedDownloadUrl(id: string, token: string): string {
   return `${baseUrl()}${API_PREFIX}/tools/sped/jobs/${id}/download?token=${encodeURIComponent(token)}`;
+}
+
+export function spedMergeDownloadUrl(id: string, token: string): string {
+  return `${baseUrl()}${API_PREFIX}/tools/sped-merge/jobs/${id}/download?token=${encodeURIComponent(token)}`;
 }

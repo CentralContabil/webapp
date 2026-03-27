@@ -8,7 +8,9 @@ import {
   downloadUrl,
   getJob,
   getSpedJob,
+  getSpedMergeJob,
   spedDownloadUrl,
+  spedMergeDownloadUrl,
   type JobResponse,
 } from "../api.js";
 import { fadeUp, transitionFast, transitionSmooth } from "../motion-variants.js";
@@ -23,7 +25,8 @@ type UiPhase =
 
 export default function DownloadPage() {
   const { pathname } = useLocation();
-  const isSped = pathname.includes("/tools/sped/download");
+  const isSpedMerge = pathname.includes("/tools/sped-merge/download");
+  const isSped = pathname.includes("/tools/sped/download") && !isSpedMerge;
   const { jobId: rawId } = useParams<{ jobId: string }>();
   const jobId = rawId ? decodeURIComponent(rawId) : "";
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -37,7 +40,11 @@ export default function DownloadPage() {
 
     const tick = async () => {
       try {
-        const j = isSped ? await getSpedJob(jobId) : await getJob(jobId);
+        const j = isSpedMerge
+          ? await getSpedMergeJob(jobId)
+          : isSped
+            ? await getSpedJob(jobId)
+            : await getJob(jobId);
         if (cancelled) return;
         setLoadErr(null);
         setJob(j);
@@ -66,7 +73,7 @@ export default function DownloadPage() {
         timerRef.current = null;
       }
     };
-  }, [jobId, isSped]);
+  }, [jobId, isSped, isSpedMerge]);
 
   const showDeterminateBar =
     job?.status === "running" &&
@@ -75,7 +82,9 @@ export default function DownloadPage() {
 
   const progressLabel =
     job?.status === "running"
-      ? "Gerando planilha…"
+      ? isSpedMerge
+        ? "Mesclando SPED…"
+        : "Gerando planilha…"
       : job?.status === "queued"
         ? "Na fila…"
         : "Carregando…";
@@ -126,7 +135,9 @@ export default function DownloadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.08 }}
         >
-          {isSped ? (
+          {isSpedMerge ? (
+            <ToolPageTitle left="XLSX" right="SPED" size="download" />
+          ) : isSped ? (
             <ToolPageTitle left="SPED" right="XLSX" size="download" />
           ) : (
             <TitleNfeXmlXlsx size="download" />
@@ -138,7 +149,7 @@ export default function DownloadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.14 }}
         >
-          Download da planilha
+          {isSpedMerge ? "Download do arquivo SPED" : "Download da planilha"}
         </motion.p>
       </motion.header>
 
@@ -266,7 +277,7 @@ export default function DownloadPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={transitionFast}
               >
-                Não foi possível gerar a planilha
+                {isSpedMerge ? "Não foi possível mesclar o SPED" : "Não foi possível gerar a planilha"}
               </motion.p>
               {job.error && (
                 <motion.p
@@ -305,22 +316,34 @@ export default function DownloadPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitionSmooth, delay: 0.12 }}
               >
-                <p className="font-display text-lg font-bold text-slate-800">Planilha pronta</p>
+                <p className="font-display text-lg font-bold text-slate-800">
+                  {isSpedMerge ? "SPED pronto" : "Planilha pronta"}
+                </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {isSped
-                    ? "Baixe o arquivo XLSX gerado a partir do SPED .txt."
-                    : "Baixe o arquivo XLSX gerado a partir dos seus XMLs."}
+                  {isSpedMerge
+                    ? "Baixe o arquivo .txt com as alterações da planilha aplicadas."
+                    : isSped
+                      ? "Baixe o arquivo XLSX gerado a partir do SPED .txt."
+                      : "Baixe o arquivo XLSX gerado a partir dos seus XMLs."}
                 </p>
               </motion.div>
               <motion.a
                 className="flex w-full max-w-md flex-col items-center gap-2 rounded-full bg-gradient-to-r from-accent to-accentHi px-5 py-4 text-center text-white shadow-[0_6px_24px_-8px_rgb(79_70_229/0.55)]"
                 href={
-                  isSped
-                    ? spedDownloadUrl(job.id, job.downloadToken)
-                    : downloadUrl(job.id, job.downloadToken)
+                  isSpedMerge
+                    ? spedMergeDownloadUrl(job.id, job.downloadToken)
+                    : isSped
+                      ? spedDownloadUrl(job.id, job.downloadToken)
+                      : downloadUrl(job.id, job.downloadToken)
                 }
-                download={job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
-                title={job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
+                download={
+                  job.fileName ??
+                  (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")
+                }
+                title={
+                  job.fileName ??
+                  (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")
+                }
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitionSmooth, delay: 0.2 }}
@@ -328,10 +351,11 @@ export default function DownloadPage() {
                 whileTap={{ scale: 0.98 }}
               >
                 <span className="font-display text-[15px] font-bold uppercase tracking-wide">
-                  Baixar planilha
+                  {isSpedMerge ? "Baixar SPED .txt" : "Baixar planilha"}
                 </span>
                 <span className="w-full break-all font-sans text-[12px] font-medium normal-case leading-snug tracking-normal text-white/95">
-                  {job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
+                  {job.fileName ??
+                    (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
                 </span>
               </motion.a>
             </motion.div>
@@ -346,7 +370,7 @@ export default function DownloadPage() {
         >
           <motion.div whileHover={{ x: -2 }} transition={transitionFast}>
             <Link
-              to={isSped ? "/tools/sped" : "/tools/nfe"}
+              to={isSpedMerge ? "/tools/sped-merge" : isSped ? "/tools/sped" : "/tools/nfe"}
               className="font-display text-sm font-bold text-accent underline-offset-4 hover:text-accent2 hover:underline"
             >
               ← Nova conversão

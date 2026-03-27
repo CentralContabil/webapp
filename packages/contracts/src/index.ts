@@ -7,6 +7,9 @@ export const QUEUE_NAME = "nfe-convert" as const;
 /** Fila BullMQ dedicada ao SPED (worker bridge + Python). */
 export const SPED_QUEUE_NAME = "sped-convert" as const;
 
+/** XLSX (com _LINHA) + SPED .txt → SPED .txt mesclado (webapp-03). */
+export const SPED_MERGE_QUEUE_NAME = "sped-merge" as const;
+
 export const SpedJobPayloadSchema = z.object({
   jobId: z.string(),
   inputPath: z.string(),
@@ -14,6 +17,15 @@ export const SpedJobPayloadSchema = z.object({
 });
 
 export type SpedJobPayload = z.infer<typeof SpedJobPayloadSchema>;
+
+export const SpedMergeJobPayloadSchema = z.object({
+  jobId: z.string(),
+  spedPath: z.string(),
+  xlsxPath: z.string(),
+  outputPath: z.string(),
+});
+
+export type SpedMergeJobPayload = z.infer<typeof SpedMergeJobPayloadSchema>;
 
 export const JobStatusSchema = z.enum([
   "queued",
