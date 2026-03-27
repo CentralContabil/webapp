@@ -9,16 +9,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: webapp-01
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: webapp-01/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run build
       - run: npm test
@@ -27,4 +24,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose -f webapp-01/docker-compose.yml build
+      - run: docker compose build
