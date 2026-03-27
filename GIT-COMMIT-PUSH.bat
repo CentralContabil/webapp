@@ -39,6 +39,9 @@ if not defined MSG (
 )
 if "!MSG!"=="" set "MSG=chore: atualizacao"
 
+for /f %%i in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "BRANCH=%%i"
+if "!BRANCH!"=="" set "BRANCH=main"
+
 echo.
 echo == git commit ==
 git commit -m "!MSG!"
@@ -49,8 +52,32 @@ if errorlevel 1 (
   exit /b 1
 )
 
-for /f %%i in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "BRANCH=%%i"
-if "!BRANCH!"=="" set "BRANCH=main"
+echo.
+echo == git fetch origin ==
+git fetch origin
+if errorlevel 1 (
+  echo Falha no fetch. Verifique rede e remote.
+  pause
+  exit /b 1
+)
+
+echo.
+echo == git rebase origin/!BRANCH! ==
+git rev-parse --verify "origin/!BRANCH!" >nul 2>&1
+if errorlevel 1 (
+  echo Remoto ainda nao tem a branch !BRANCH! — pulando rebase (comum no primeiro push).
+) else (
+  git rebase "origin/!BRANCH!"
+  if errorlevel 1 (
+    echo.
+    echo Rebase interrompido (conflito?). Ajuste os arquivos e depois:
+    echo   git add ...
+    echo   git rebase --continue
+    echo Para desfazer: git rebase --abort
+    pause
+    exit /b 1
+  )
+)
 
 echo.
 echo == git push origin !BRANCH! ==
