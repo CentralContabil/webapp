@@ -1,7 +1,7 @@
 /**
- * Expande arrastar pasta (webkit) e filtra extensões:
- * - Na raiz do drop: .xml e .zip
- * - Dentro de pastas: só .xml (ignora outros arquivos para não ir lixo ao parse)
+ * Expande arrastar pasta (webkit) e filtra extensões.
+ * NFe: na raiz .xml e .zip; dentro de pastas só .xml.
+ * SPED: .txt na raiz e dentro de pastas.
  */
 
 function isXml(file: Pick<File, "name">): boolean {
@@ -18,6 +18,10 @@ function allowAtRoot(file: File): boolean {
 
 function allowInsideFolder(file: File): boolean {
   return isXml(file);
+}
+
+function allowSpedTxt(file: File): boolean {
+  return file.name.toLowerCase().endsWith(".txt");
 }
 
 function readEntriesAsync(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
@@ -39,12 +43,17 @@ function readEntriesAsync(reader: FileSystemDirectoryReader): Promise<FileSystem
   });
 }
 
-async function entryToFiles(entry: FileSystemEntry, depth: number): Promise<File[]> {
+async function entryToFiles(
+  entry: FileSystemEntry,
+  depth: number,
+  allowRoot: (f: File) => boolean,
+  allowInside: (f: File) => boolean
+): Promise<File[]> {
   if (entry.isFile) {
     return new Promise((resolve, reject) => {
       (entry as FileSystemFileEntry).file(
         (file) => {
-          const ok = depth === 0 ? allowAtRoot(file) : allowInsideFolder(file);
+          const ok = depth === 0 ? allowRoot(file) : allowInside(file);
           resolve(ok ? [file] : []);
         },
         reject
@@ -54,23 +63,29 @@ async function entryToFiles(entry: FileSystemEntry, depth: number): Promise<File
   if (entry.isDirectory) {
     const reader = (entry as FileSystemDirectoryEntry).createReader();
     const entries = await readEntriesAsync(reader);
-    const nested = await Promise.all(entries.map((e) => entryToFiles(e, depth + 1)));
+    const nested = await Promise.all(
+      entries.map((e) => entryToFiles(e, depth + 1, allowRoot, allowInside))
+    );
     return nested.flat();
   }
   return [];
 }
 
-async function extractFromDataTransfer(dt: DataTransfer): Promise<File[]> {
+async function extractFromDataTransfer(
+  dt: DataTransfer,
+  allowRoot: (f: File) => boolean,
+  allowInside: (f: File) => boolean
+): Promise<File[]> {
   const items = dt.items;
   if (items?.length && typeof items[0].webkitGetAsEntry === "function") {
     const out: File[] = [];
     for (let i = 0; i < items.length; i++) {
       const entry = items[i].webkitGetAsEntry?.();
-      if (entry) out.push(...(await entryToFiles(entry, 0)));
+      if (entry) out.push(...(await entryToFiles(entry, 0, allowRoot, allowInside)));
     }
     return out;
   }
-  return Array.from(dt.files).filter(allowAtRoot);
+  return Array.from(dt.files).filter(allowRoot);
 }
 
 export function fileLabel(file: File): string {
@@ -78,14 +93,26 @@ export function fileLabel(file: File): string {
   return w && w.length > 0 ? w : file.name;
 }
 
-/** Para `useDropzone({ getFilesFromEvent })` — cobre arrastar e o input file. */
+/** NFe: `useDropzone({ getFilesFromEvent })` — arrastar + input. */
 export async function getFilesFromEvent(event: Event): Promise<File[]> {
   if ("dataTransfer" in event && event.dataTransfer) {
-    return extractFromDataTransfer(event.dataTransfer);
+    return extractFromDataTransfer(event.dataTransfer, allowAtRoot, allowInsideFolder);
   }
   const t = event.target as HTMLInputElement | null;
   if (t?.files?.length) {
     return Array.from(t.files).filter(allowAtRoot);
+  }
+  return [];
+}
+
+/** SPED: mesmo fluxo webkit, mas aceita só `.txt` (o handler NFe descartava .txt). */
+export async function getSpedFilesFromEvent(event: Event): Promise<File[]> {
+  if ("dataTransfer" in event && event.dataTransfer) {
+    return extractFromDataTransfer(event.dataTransfer, allowSpedTxt, allowSpedTxt);
+  }
+  const t = event.target as HTMLInputElement | null;
+  if (t?.files?.length) {
+    return Array.from(t.files).filter(allowSpedTxt);
   }
   return [];
 }

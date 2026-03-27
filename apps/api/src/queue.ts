@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { QUEUE_NAME } from "@webapp/contracts";
+import { QUEUE_NAME, SPED_QUEUE_NAME, type SpedJobPayload } from "@webapp/contracts";
 import type { Env } from "./env.js";
 
 export type NfeJobPayload = {
@@ -9,8 +9,11 @@ export type NfeJobPayload = {
   outputPath: string;
 };
 
+export type { SpedJobPayload };
+
 let connection: Redis | null = null;
 let queue: Queue<NfeJobPayload> | null = null;
+let spedQueue: Queue<SpedJobPayload> | null = null;
 
 export function getRedis(env: Env): Redis {
   if (!connection) {
@@ -35,4 +38,18 @@ export function getQueue(env: Env): Queue<NfeJobPayload> {
     });
   }
   return queue;
+}
+
+export function getSpedQueue(env: Env): Queue<SpedJobPayload> {
+  if (!spedQueue) {
+    spedQueue = new Queue<SpedJobPayload>(SPED_QUEUE_NAME, {
+      connection: getRedis(env),
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: { count: 200 },
+        removeOnFail: { count: 100 },
+      },
+    });
+  }
+  return spedQueue;
 }

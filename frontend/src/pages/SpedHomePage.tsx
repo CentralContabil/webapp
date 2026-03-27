@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { createJob, getJob, type JobResponse } from "../api.js";
-import { fileLabel, getFilesFromEvent } from "../dropFiles.js";
-import { TitleNfeXmlXlsx } from "../components/TitleNfeXmlXlsx.js";
+import { createSpedJob, getSpedJob, type JobResponse } from "../api.js";
+import { fileLabel, getSpedFilesFromEvent } from "../dropFiles.js";
+import { ToolPageTitle } from "../components/ToolPageTitle.js";
 import {
   toolDropzoneClass,
   toolPageShellClass,
@@ -19,7 +19,7 @@ import {
   transitionSmooth,
 } from "../motion-variants.js";
 
-export default function HomePage() {
+export default function SpedHomePage() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -27,39 +27,38 @@ export default function HomePage() {
   const [err, setErr] = useState<string | null>(null);
 
   const onDrop = useCallback((accepted: File[]) => {
-    setFiles((prev) => [...prev, ...accepted]);
+    setFiles(() => accepted.slice(0, 1));
     setErr(null);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    getFilesFromEvent,
-    accept: {
-      "application/xml": [".xml"],
-      "text/xml": [".xml"],
-      "application/zip": [".zip"],
-    },
+    maxFiles: 1,
+    multiple: false,
+    getFilesFromEvent: getSpedFilesFromEvent,
+    /** Sem `accept`: no Windows o MIME do .txt costuma ser vazio e o dropzone descartava o arquivo. Validação só pela extensão. */
     validator: (file) => {
       const n = file.name.toLowerCase();
-      if (n.endsWith(".xml") || n.endsWith(".zip")) return null;
+      if (n.endsWith(".txt")) return null;
       return {
         code: "file-invalid-type",
-        message: "Apenas .xml ou .zip na seleção",
+        message: "Apenas arquivo .txt SPED",
       };
     },
   });
 
-  const removeAt = (i: number) => {
-    setFiles((prev) => prev.filter((_, idx) => idx !== i));
+  const removeFile = () => {
+    setFiles([]);
   };
 
   const submit = async () => {
-    if (files.length === 0) return;
+    const f = files[0];
+    if (!f) return;
     setBusy(true);
     setErr(null);
     setJob(null);
     try {
-      const { id } = await createJob(files);
+      const { id } = await createSpedJob(f);
       setJob({ id, status: "queued" });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -72,7 +71,7 @@ export default function HomePage() {
     if (!job?.id || job.status === "done" || job.status === "failed") return;
     const t = setInterval(async () => {
       try {
-        const j = await getJob(job.id);
+        const j = await getSpedJob(job.id);
         setJob(j);
       } catch {
         /* ignore */
@@ -83,7 +82,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (job?.status === "done" && job.downloadToken && job.id) {
-      navigate(`/tools/nfe/download/${encodeURIComponent(job.id)}`, { replace: true });
+      navigate(`/tools/sped/download/${encodeURIComponent(job.id)}`, { replace: true });
     }
   }, [job?.status, job?.downloadToken, job?.id, navigate]);
 
@@ -100,7 +99,7 @@ export default function HomePage() {
     !Number.isNaN(job.progress);
 
   const progressLabel = busy
-    ? "Enviando arquivos…"
+    ? "Enviando arquivo…"
     : job?.status === "running"
       ? "Gerando planilha…"
       : job?.status === "queued"
@@ -125,7 +124,7 @@ export default function HomePage() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ ...springSoft, delay: 0.08 }}
         >
-          <TitleNfeXmlXlsx size="home" />
+          <ToolPageTitle left="SPED" right="XLSX" size="home" />
         </motion.div>
         <motion.p
           className="mt-3 text-[15px] leading-relaxed text-slate-600"
@@ -133,8 +132,8 @@ export default function HomePage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          Arraste XMLs, um ZIP ou uma pasta (só entram arquivos .xml; na raiz também
-          .zip). Outros tipos são ignorados.
+          Envie um único arquivo <strong>.txt</strong> SPED EFD (EFD Contribuições / ICMS-IPI). A planilha terá
+          uma aba por tipo de registro configurado.
         </motion.p>
       </motion.header>
 
@@ -152,7 +151,7 @@ export default function HomePage() {
         whileHover={{ scale: isDragActive ? 1.02 : 1.01 }}
         whileTap={{ scale: 0.995 }}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps({ accept: ".txt,text/plain" })} />
         <motion.p
           className="font-display font-semibold text-slate-800"
           animate={{ opacity: 1, y: 0 }}
@@ -160,13 +159,9 @@ export default function HomePage() {
           initial={{ opacity: 0.85, y: 4 }}
           transition={transitionFast}
         >
-          {isDragActive
-            ? "Solte os arquivos…"
-            : "Clique ou arraste XML, ZIP ou pasta com XMLs"}
+          {isDragActive ? "Solte o arquivo…" : "Clique ou arraste o arquivo SPED .txt"}
         </motion.p>
-        <p className="mt-2 text-sm text-slate-600">
-          Pastas: apenas .xml dentro da pasta; demais arquivos ignorados
-        </p>
+        <p className="mt-2 text-sm text-slate-600">Um arquivo por vez</p>
       </motion.section>
 
       <AnimatePresence mode="popLayout">
@@ -180,40 +175,31 @@ export default function HomePage() {
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             layout
           >
-            <ul
-              className="max-h-[min(42vh,20rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
-              aria-label="Arquivos selecionados"
-            >
-              <AnimatePresence initial={false} mode="popLayout">
-                {files.map((f, i) => (
-                  <motion.li
-                    key={`${fileLabel(f)}-${i}`}
-                    layout
-                    initial={{ opacity: 0, x: -16, scale: 0.97 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    transition={{
-                      ...transitionSmooth,
-                      delay: Math.min(i * 0.025, 0.35),
-                    }}
-                    exit={{ opacity: 0, x: 28, scale: 0.94, transition: transitionFast }}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/90 px-3 py-2 text-sm text-slate-800 ring-1 ring-slate-200/80"
+            <ul className="space-y-2" aria-label="Arquivo selecionado">
+              {files.map((f, i) => (
+                <motion.li
+                  key={`${fileLabel(f)}-${i}`}
+                  layout
+                  initial={{ opacity: 0, x: -16, scale: 0.97 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  transition={transitionSmooth}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/90 px-3 py-2 text-sm text-slate-800 ring-1 ring-slate-200/80"
+                >
+                  <span className="min-w-0 truncate" title={fileLabel(f)}>
+                    {fileLabel(f)}
+                  </span>
+                  <motion.button
+                    type="button"
+                    className="shrink-0 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                    onClick={removeFile}
+                    whileHover={{ scale: 1.06, filter: "brightness(1.08)" }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={springSnappy}
                   >
-                    <span className="min-w-0 truncate" title={fileLabel(f)}>
-                      {fileLabel(f)}
-                    </span>
-                    <motion.button
-                      type="button"
-                      className="shrink-0 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                      onClick={() => removeAt(i)}
-                      whileHover={{ scale: 1.06, filter: "brightness(1.08)" }}
-                      whileTap={{ scale: 0.92 }}
-                      transition={springSnappy}
-                    >
-                      remover
-                    </motion.button>
-                  </motion.li>
-                ))}
-              </AnimatePresence>
+                    remover
+                  </motion.button>
+                </motion.li>
+              ))}
             </ul>
             <motion.button
               type="button"
@@ -311,9 +297,7 @@ export default function HomePage() {
             transition={transitionSmooth}
           >
             <p className="font-bold text-rose-700">Erro ao processar</p>
-            {job.error && (
-              <p className="mt-2 text-sm text-rose-600">{job.error}</p>
-            )}
+            {job.error && <p className="mt-2 text-sm text-rose-600">{job.error}</p>}
           </motion.div>
         )}
       </AnimatePresence>

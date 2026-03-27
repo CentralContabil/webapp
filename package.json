@@ -11,13 +11,15 @@
     "redis:down": "docker compose stop redis",
     "dev": "npm run dev:all",
     "dev:fe": "npm run dev -w @webapp/frontend",
-    "dev:all": "npm run build -w @webapp/contracts -w @webapp/nfe-core -w @webapp/excel-export -w @webapp/api -w @webapp/worker && concurrently -n api,worker,vite -c cyan,magenta,green npm:dev:api:only npm:dev:worker:only npm:dev:fe",
+    "dev:all": "npm run build -w @webapp/contracts -w @webapp/nfe-core -w @webapp/excel-export -w @webapp/api -w @webapp/worker -w @webapp/worker-sped-bridge && concurrently -n api,worker,sped,vite -c cyan,magenta,yellow,green npm:dev:api:only npm:dev:worker:only npm:dev:worker-sped:only npm:dev:fe",
     "dev:stack": "npm run redis:up && npm run dev:all",
     "dev:api:only": "cross-env JWT_SECRET=devJWTSecretMinimum16chars REDIS_URL=redis://127.0.0.1:6379 TEMP_JOBS_ROOT=./temp_jobs node apps/api/dist/server.js",
     "dev:worker:only": "cross-env REDIS_URL=redis://127.0.0.1:6379 TEMP_JOBS_ROOT=./temp_jobs node apps/worker/dist/index.js",
-    "dev:backend": "npm run build -w @webapp/contracts -w @webapp/nfe-core -w @webapp/excel-export -w @webapp/api -w @webapp/worker && concurrently -n api,worker -c cyan,magenta npm:dev:api:only npm:dev:worker:only",
-    "build": "npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/frontend",
+    "dev:worker-sped:only": "cross-env REDIS_URL=redis://127.0.0.1:6379 node apps/worker-sped-bridge/dist/index.js",
+    "dev:backend": "npm run build -w @webapp/contracts -w @webapp/nfe-core -w @webapp/excel-export -w @webapp/api -w @webapp/worker -w @webapp/worker-sped-bridge && concurrently -n api,worker,sped -c cyan,magenta,yellow npm:dev:api:only npm:dev:worker:only npm:dev:worker-sped:only",
+    "build": "npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/worker-sped-bridge && npm run build -w @webapp/frontend",
     "test": "npm run test -w @webapp/nfe-core --if-present",
+    "test:sped-smoke": "node scripts/run-sped-smoke.cjs",
     "lint": "echo \"lint opcional\""
   },
   "devDependencies": {

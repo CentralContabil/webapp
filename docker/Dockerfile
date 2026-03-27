@@ -7,7 +7,7 @@ COPY packages ./packages
 COPY apps ./apps
 COPY frontend ./frontend
 RUN npm ci --workspaces --include-workspace-root 2>/dev/null || npm install --workspaces --include-workspace-root
-RUN npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/frontend
+RUN npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/worker-sped-bridge && npm run build -w @webapp/frontend
 
 # API runtime
 FROM node:22-bookworm-slim AS api

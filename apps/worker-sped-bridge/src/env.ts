@@ -1,20 +1,26 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function defaultSpedEngineDir(): string {
+  return path.resolve(__dirname, "../../../../webapp-02/sped_engine");
+}
 
 const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
-  PORT: z.coerce.number().default(8000),
   REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
-  /** Sempre absoluto (cwd na subida do processo) para coincidir com workers e Python. */
+  /** Mesmo diretório da API (absoluto); usado se o job vier com path relativo tipo temp_jobs/... */
   TEMP_JOBS_ROOT: z
     .string()
     .default("./temp_jobs")
     .transform((s) => path.resolve(process.cwd(), s)),
-  JWT_SECRET: z.string().min(16, "JWT_SECRET deve ter pelo menos 16 caracteres"),
-  ALLOWED_ORIGINS: z.string().default("http://localhost:5176,http://192.168.0.47:5176"),
-  MAX_UPLOAD_MB: z.coerce.number().default(50),
-  /** Quantidade máxima de XMLs consolidados por job (pastas grandes). */
-  MAX_XML_FILES: z.coerce.number().default(5000),
+  SPED_ENGINE_DIR: z.string().default(defaultSpedEngineDir()),
+  /** Executável Python (ex.: python3, py -3, /opt/sped/bin/python) */
+  PYTHON_CMD: z.string().default(
+    process.platform === "win32" ? "py" : "python3"
+  ),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

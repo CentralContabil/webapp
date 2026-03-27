@@ -1,8 +1,16 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { TitleNfeXmlXlsx } from "../components/TitleNfeXmlXlsx.js";
-import { downloadUrl, getJob, type JobResponse } from "../api.js";
+import { ToolPageTitle } from "../components/ToolPageTitle.js";
+import { toolPageShellClass, toolProgressFillClass } from "../toolLayout.js";
+import {
+  downloadUrl,
+  getJob,
+  getSpedJob,
+  spedDownloadUrl,
+  type JobResponse,
+} from "../api.js";
 import { fadeUp, transitionFast, transitionSmooth } from "../motion-variants.js";
 
 type UiPhase =
@@ -14,6 +22,8 @@ type UiPhase =
   | "done";
 
 export default function DownloadPage() {
+  const { pathname } = useLocation();
+  const isSped = pathname.includes("/tools/sped/download");
   const { jobId: rawId } = useParams<{ jobId: string }>();
   const jobId = rawId ? decodeURIComponent(rawId) : "";
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -27,7 +37,7 @@ export default function DownloadPage() {
 
     const tick = async () => {
       try {
-        const j = await getJob(jobId);
+        const j = isSped ? await getSpedJob(jobId) : await getJob(jobId);
         if (cancelled) return;
         setLoadErr(null);
         setJob(j);
@@ -56,7 +66,7 @@ export default function DownloadPage() {
         timerRef.current = null;
       }
     };
-  }, [jobId]);
+  }, [jobId, isSped]);
 
   const showDeterminateBar =
     job?.status === "running" &&
@@ -100,7 +110,7 @@ export default function DownloadPage() {
 
   return (
     <motion.div
-      className="mx-auto flex min-h-screen max-w-lg flex-col gap-8 px-4 py-12"
+      className={toolPageShellClass}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={transitionSmooth}
@@ -116,10 +126,14 @@ export default function DownloadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.08 }}
         >
-          <TitleNfeXmlXlsx size="download" />
+          {isSped ? (
+            <ToolPageTitle left="SPED" right="XLSX" size="download" />
+          ) : (
+            <TitleNfeXmlXlsx size="download" />
+          )}
         </motion.div>
         <motion.p
-          className="mt-2 text-sm font-medium text-indigo-900/70"
+          className="mt-3 text-[15px] leading-relaxed text-slate-600"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.14 }}
@@ -200,7 +214,7 @@ export default function DownloadPage() {
                   {showDeterminateBar ? (
                     <motion.div
                       key="determinate"
-                      className="h-full rounded-full bg-gradient-to-r from-accent via-fuchsia-500 to-accent2 shadow-glow"
+                      className={toolProgressFillClass}
                       initial={{ width: 0, opacity: 0.85 }}
                       animate={{ width: `${progressPct}%`, opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -209,7 +223,7 @@ export default function DownloadPage() {
                   ) : (
                     <motion.div
                       key="indeterminate"
-                      className="absolute top-0 h-full w-[38%] rounded-full bg-gradient-to-r from-accent via-fuchsia-500 to-accent2 shadow-glow animate-loadingBar"
+                      className={`absolute top-0 h-full w-[38%] animate-loadingBar ${toolProgressFillClass}`}
                       aria-hidden
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -293,14 +307,20 @@ export default function DownloadPage() {
               >
                 <p className="font-display text-lg font-bold text-slate-800">Planilha pronta</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Baixe o arquivo XLSX gerado a partir dos seus XMLs.
+                  {isSped
+                    ? "Baixe o arquivo XLSX gerado a partir do SPED .txt."
+                    : "Baixe o arquivo XLSX gerado a partir dos seus XMLs."}
                 </p>
               </motion.div>
               <motion.a
-                className="flex w-full max-w-md flex-col items-center gap-2 rounded-xl bg-gradient-to-r from-accent via-accentHi to-accent2 px-5 py-4 text-center text-white shadow-btn"
-                href={downloadUrl(job.id, job.downloadToken)}
-                download={job.fileName ?? "NFE_Itens.xlsx"}
-                title={job.fileName ?? "NFE_Itens.xlsx"}
+                className="flex w-full max-w-md flex-col items-center gap-2 rounded-full bg-gradient-to-r from-accent to-accentHi px-5 py-4 text-center text-white shadow-[0_6px_24px_-8px_rgb(79_70_229/0.55)]"
+                href={
+                  isSped
+                    ? spedDownloadUrl(job.id, job.downloadToken)
+                    : downloadUrl(job.id, job.downloadToken)
+                }
+                download={job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
+                title={job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitionSmooth, delay: 0.2 }}
@@ -311,7 +331,7 @@ export default function DownloadPage() {
                   Baixar planilha
                 </span>
                 <span className="w-full break-all font-sans text-[12px] font-medium normal-case leading-snug tracking-normal text-white/95">
-                  {job.fileName ?? "NFE_Itens.xlsx"}
+                  {job.fileName ?? (isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
                 </span>
               </motion.a>
             </motion.div>
@@ -326,7 +346,7 @@ export default function DownloadPage() {
         >
           <motion.div whileHover={{ x: -2 }} transition={transitionFast}>
             <Link
-              to="/"
+              to={isSped ? "/tools/sped" : "/tools/nfe"}
               className="font-display text-sm font-bold text-accent underline-offset-4 hover:text-accent2 hover:underline"
             >
               ← Nova conversão

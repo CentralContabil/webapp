@@ -1,6 +1,20 @@
-# webapp-01 — NFe XML → XLSX
+# webapp-01 — Plataforma de conversões (hub + ferramentas)
 
-Monorepo **Node.js + TypeScript**: API **Fastify**, fila **BullMQ** + **Redis**, worker assíncrono, frontend **Vite + React** (porta **5176**, LAN).
+Monorepo **Node.js + TypeScript**: API **Fastify**, fila **BullMQ** + **Redis**, workers assíncronos, frontend **Vite + React** (porta **5176**, LAN).
+
+### Repositório GitHub (uma repo, várias ferramentas)
+
+Este repositório concentra a **plataforma** e as **ferramentas** atuais e futuras (NFe, SPED, etc.). Novas ferramentas entram como pastas/workers adicionais (ex.: [webapp-02](../webapp-02) para SPED) sem obrigar outro repositório.
+
+- **Hub:** `/` lista ferramentas (`GET /api/v1/tools` alimenta os cards).
+- **NFe XML → XLSX:** `/tools/nfe` (rotas legadas de API: `POST /api/v1/jobs` inalteradas).
+- **SPED → XLSX:** em desenvolvimento; placeholder em `/tools/sped`, código alvo em **webapp-02**.
+
+---
+
+## Ferramenta NFe (referência rápida)
+
+Monorepo **Node.js + TypeScript** para XML NFe → XLSX: API **Fastify**, fila **BullMQ** + **Redis**, worker assíncrono.
 
 ### Início rápido (um comando)
 

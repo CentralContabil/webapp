@@ -4,6 +4,17 @@ export const API_PREFIX = "/api/v1" as const;
 
 export const QUEUE_NAME = "nfe-convert" as const;
 
+/** Fila BullMQ dedicada ao SPED (worker bridge + Python). */
+export const SPED_QUEUE_NAME = "sped-convert" as const;
+
+export const SpedJobPayloadSchema = z.object({
+  jobId: z.string(),
+  inputPath: z.string(),
+  outputPath: z.string(),
+});
+
+export type SpedJobPayload = z.infer<typeof SpedJobPayloadSchema>;
+
 export const JobStatusSchema = z.enum([
   "queued",
   "running",

@@ -20,6 +20,47 @@ export type JobResponse = {
   fileName?: string;
 };
 
+export type ToolManifestEntry = {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  route: string;
+  available: boolean;
+};
+
+export async function fetchToolsManifest(): Promise<ToolManifestEntry[]> {
+  try {
+    const res = await fetch(`${baseUrl()}${API_PREFIX}/tools`);
+    if (!res.ok) return defaultToolsManifest();
+    const data = (await res.json()) as { tools?: ToolManifestEntry[] };
+    return Array.isArray(data.tools) && data.tools.length > 0 ? data.tools : defaultToolsManifest();
+  } catch {
+    return defaultToolsManifest();
+  }
+}
+
+function defaultToolsManifest(): ToolManifestEntry[] {
+  return [
+    {
+      id: "nfe",
+      title: "XML → XLSX",
+      subtitle: "Notas fiscais eletrônicas",
+      description: "Envie XMLs ou ZIP e baixe a planilha consolidada dos itens.",
+      route: "/tools/nfe",
+      available: true,
+    },
+    {
+      id: "sped",
+      title: "SPED → XLSX",
+      subtitle: "EFD Contribuições / ICMS-IPI",
+      description: "Envie um arquivo .txt SPED EFD e baixe a planilha por registro.",
+      route: "/tools/sped",
+      available: true,
+    },
+  ];
+}
+
 const UPLOAD_TIMEOUT_MS = 180_000;
 
 function apiOfflineMessage(): string {
@@ -110,6 +151,71 @@ export async function getJob(id: string): Promise<JobResponse> {
   return res.json() as Promise<JobResponse>;
 }
 
+export async function createSpedJob(file: File): Promise<{ id: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped/jobs`, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const aborted =
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (aborted) {
+      throw new Error(
+        `Envio excedeu ${Math.round(UPLOAD_TIMEOUT_MS / 60_000)} minutos (rede lenta ou API sem resposta). Verifique Redis, API em :8000 e worker SPED e tente de novo.`
+      );
+    }
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    let msg = (err as { error?: string }).error ?? res.statusText;
+    const relative = !baseUrl();
+    if (
+      relative &&
+      (res.status === 500 || res.status === 502 || res.status === 503) &&
+      (msg === "Internal Server Error" || msg.length < 3)
+    ) {
+      msg =
+        "A API em http://127.0.0.1:8000 não está rodando ou o worker SPED não está ativo. Na pasta webapp-01: npm run redis:up e npm run dev (inclui worker-sped).";
+    }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function getSpedJob(id: string): Promise<JobResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped/jobs/${id}`);
+  } catch (e) {
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  }
+  return res.json() as Promise<JobResponse>;
+}
+
 export function downloadUrl(id: string, token: string): string {
   return `${baseUrl()}${API_PREFIX}/jobs/${id}/download?token=${encodeURIComponent(token)}`;
+}
+
+export function spedDownloadUrl(id: string, token: string): string {
+  return `${baseUrl()}${API_PREFIX}/tools/sped/jobs/${id}/download?token=${encodeURIComponent(token)}`;
 }

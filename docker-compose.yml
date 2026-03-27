@@ -39,6 +39,18 @@ services:
     depends_on:
       - redis
 
+  worker-sped:
+    profiles: ["sped"]
+    build:
+      context: ..
+      dockerfile: webapp-01/docker/Dockerfile.worker-sped
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - job-data:/data/jobs
+    depends_on:
+      - redis
+
 volumes:
   redis-data:
   job-data:
