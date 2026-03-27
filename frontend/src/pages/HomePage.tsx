@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { createJob, getJob, type JobResponse } from "../api.js";
 import { fileLabel, getFilesFromEvent } from "../dropFiles.js";
+import { TitleNfeXmlXlsx } from "../components/TitleNfeXmlXlsx.js";
+import {
+  fadeUp,
+  springSnappy,
+  springSoft,
+  transitionFast,
+  transitionSmooth,
+} from "../motion-variants.js";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -93,116 +102,220 @@ export default function HomePage() {
         : "Aguarde…";
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-4 py-12">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-800">
-          NFe XML → XLSX
-        </h1>
-        <p className="mt-2 text-slate-600">
+    <motion.div
+      className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-4 py-12"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <motion.header
+        className="text-center"
+        initial={fadeUp.initial}
+        animate={fadeUp.animate}
+        transition={{ ...transitionSmooth, delay: 0.05 }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 12, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ ...springSoft, delay: 0.08 }}
+        >
+          <TitleNfeXmlXlsx size="home" />
+        </motion.div>
+        <motion.p
+          className="mt-3 text-[15px] leading-relaxed text-slate-600"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        >
           Arraste XMLs, um ZIP ou uma pasta (só entram arquivos .xml; na raiz também
           .zip). Outros tipos são ignorados.
-        </p>
-      </header>
+        </motion.p>
+      </motion.header>
 
-      <section
+      <motion.section
         {...getRootProps()}
-        className={`cursor-pointer rounded-2xl border-2 border-dashed bg-white/80 p-10 text-center shadow-sm backdrop-blur transition
-          ${isDragActive ? "border-accent bg-lilac/50" : "border-slate-200 hover:border-accent/60"}`}
+        className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center shadow-card backdrop-blur-xl
+          ${
+            isDragActive
+              ? "border-accent bg-white/50 shadow-card-hover ring-4 ring-accent/25"
+              : "border-indigo-300/70 bg-white/65 shadow-card hover:border-accent/80 hover:bg-white/80 hover:shadow-card-hover"
+          }`}
+        initial={{ opacity: 0, y: 20, scale: 0.98, filter: "blur(6px)" }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          scale: isDragActive ? 1.02 : 1,
+          filter: "blur(0px)",
+        }}
+        transition={isDragActive ? springSnappy : { ...transitionSmooth, delay: 0.12 }}
+        whileHover={{ scale: isDragActive ? 1.02 : 1.01 }}
+        whileTap={{ scale: 0.995 }}
       >
         <input {...getInputProps()} />
-        <p className="font-medium text-slate-700">
+        <motion.p
+          className="font-display font-semibold text-slate-800"
+          animate={{ opacity: 1, y: 0 }}
+          key={isDragActive ? "drag" : "idle"}
+          initial={{ opacity: 0.85, y: 4 }}
+          transition={transitionFast}
+        >
           {isDragActive
             ? "Solte os arquivos…"
             : "Clique ou arraste XML, ZIP ou pasta com XMLs"}
-        </p>
-        <p className="mt-2 text-sm text-slate-500">
+        </motion.p>
+        <p className="mt-2 text-sm text-slate-600">
           Pastas: apenas .xml dentro da pasta; demais arquivos ignorados
         </p>
-      </section>
+      </motion.section>
 
-      {files.length > 0 && (
-        <div className="flex flex-col rounded-2xl bg-white/90 p-4 shadow-sm">
-          <ul
-            className="max-h-[min(42vh,20rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
-            aria-label="Arquivos selecionados"
+      <AnimatePresence mode="popLayout">
+        {files.length > 0 && (
+          <motion.div
+            key="files-panel"
+            className="flex flex-col rounded-2xl border border-white/50 bg-white/75 p-4 shadow-card backdrop-blur-xl"
+            initial={{ opacity: 0, y: 28, scale: 0.97, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -16, scale: 0.98, filter: "blur(6px)" }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            layout
           >
-            {files.map((f, i) => (
-              <li
-                key={`${fileLabel(f)}-${i}`}
-                className="flex items-center justify-between gap-2 text-sm text-slate-700"
-              >
-                <span className="min-w-0 truncate" title={fileLabel(f)}>
-                  {fileLabel(f)}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-lg bg-rose-100 px-2 py-1 text-rose-700 text-xs"
-                  onClick={() => removeAt(i)}
-                >
-                  remover
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={submit}
-            className="mt-4 w-full shrink-0 rounded-xl bg-gradient-to-r from-accent to-accent2 py-3 font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
-          >
-            {busy ? "Enviando…" : "Gerar planilha"}
-          </button>
-          {isProcessing && (
-            <div className="mt-4 space-y-2" aria-live="polite">
-              <p className="text-center text-xs font-medium text-slate-500">
-                {progressLabel}
-              </p>
-              <div
-                className="relative h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
-                role="progressbar"
-                aria-valuetext={progressLabel}
-                aria-busy={!showDeterminateBar}
-                {...(showDeterminateBar
-                  ? {
-                      "aria-valuemin": 0,
-                      "aria-valuemax": 100,
-                      "aria-valuenow": Math.round(
-                        Math.min(100, Math.max(0, job!.progress as number))
-                      ),
-                    }
-                  : {})}
-              >
-                {showDeterminateBar ? (
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent2 transition-[width] duration-300 ease-out"
-                    style={{
-                      width: `${Math.min(100, Math.max(0, job!.progress as number))}%`,
+            <ul
+              className="max-h-[min(42vh,20rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
+              aria-label="Arquivos selecionados"
+            >
+              <AnimatePresence initial={false} mode="popLayout">
+                {files.map((f, i) => (
+                  <motion.li
+                    key={`${fileLabel(f)}-${i}`}
+                    layout
+                    initial={{ opacity: 0, x: -16, scale: 0.97 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    transition={{
+                      ...transitionSmooth,
+                      delay: Math.min(i * 0.025, 0.35),
                     }}
-                  />
-                ) : (
+                    exit={{ opacity: 0, x: 28, scale: 0.94, transition: transitionFast }}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/90 px-3 py-2 text-sm text-slate-800 ring-1 ring-slate-200/80"
+                  >
+                    <span className="min-w-0 truncate" title={fileLabel(f)}>
+                      {fileLabel(f)}
+                    </span>
+                    <motion.button
+                      type="button"
+                      className="shrink-0 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                      onClick={() => removeAt(i)}
+                      whileHover={{ scale: 1.06, filter: "brightness(1.08)" }}
+                      whileTap={{ scale: 0.92 }}
+                      transition={springSnappy}
+                    >
+                      remover
+                    </motion.button>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </ul>
+            <motion.button
+              type="button"
+              disabled={busy}
+              onClick={submit}
+              className="font-display mt-4 w-full shrink-0 rounded-xl bg-gradient-to-r from-accent via-accentHi to-accent2 py-3.5 text-[15px] font-bold text-white shadow-btn disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+              whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(79 70 229 / 0.45)" }}
+              whileTap={busy ? undefined : { scale: 0.985 }}
+              transition={springSnappy}
+            >
+              {busy ? "Enviando…" : "Gerar planilha"}
+            </motion.button>
+            <AnimatePresence>
+              {isProcessing && (
+                <motion.div
+                  key="progress"
+                  className="mt-4 space-y-2"
+                  aria-live="polite"
+                  initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -6, filter: "blur(3px)" }}
+                  transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <motion.p
+                    className="text-center text-xs font-semibold text-indigo-600"
+                    key={progressLabel}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={transitionFast}
+                  >
+                    {progressLabel}
+                  </motion.p>
                   <div
-                    className="absolute top-0 h-full w-[38%] rounded-full bg-gradient-to-r from-accent to-accent2 shadow-sm animate-loadingBar"
-                    aria-hidden
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                    className="relative h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50"
+                    role="progressbar"
+                    aria-valuetext={progressLabel}
+                    aria-busy={!showDeterminateBar}
+                    {...(showDeterminateBar
+                      ? {
+                          "aria-valuemin": 0,
+                          "aria-valuemax": 100,
+                          "aria-valuenow": Math.round(
+                            Math.min(100, Math.max(0, job!.progress as number))
+                          ),
+                        }
+                      : {})}
+                  >
+                    {showDeterminateBar ? (
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-accent via-fuchsia-500 to-accent2 shadow-glow"
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${Math.min(100, Math.max(0, job!.progress as number))}%`,
+                        }}
+                        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                      />
+                    ) : (
+                      <div
+                        className="absolute top-0 h-full w-[38%] rounded-full bg-gradient-to-r from-accent via-fuchsia-500 to-accent2 shadow-glow animate-loadingBar"
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {err && (
-        <p className="rounded-xl bg-rose-50 px-4 py-3 text-rose-800 text-sm">{err}</p>
-      )}
+      <AnimatePresence>
+        {err && (
+          <motion.p
+            key="err"
+            className="rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50 to-orange-50 px-4 py-3 text-sm font-medium text-rose-900 shadow-card"
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={transitionSmooth}
+          >
+            {err}
+          </motion.p>
+        )}
+      </AnimatePresence>
 
-      {job?.status === "failed" && (
-        <div className="rounded-2xl bg-white/90 p-6 shadow-sm">
-          <p className="font-medium text-rose-800">Erro ao processar</p>
-          {job.error && (
-            <p className="mt-2 text-sm text-rose-700">{job.error}</p>
-          )}
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {job?.status === "failed" && (
+          <motion.div
+            key="failed"
+            className="rounded-2xl border border-rose-200/80 bg-white/80 p-6 shadow-card backdrop-blur-xl"
+            initial={{ opacity: 0, y: 16, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
+            transition={transitionSmooth}
+          >
+            <p className="font-bold text-rose-700">Erro ao processar</p>
+            {job.error && (
+              <p className="mt-2 text-sm text-rose-600">{job.error}</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

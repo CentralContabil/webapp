@@ -222,7 +222,12 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
 
     const stream = fs.createReadStream(outPath);
     reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    reply.header("Content-Disposition", `attachment; filename="${claims.fileName}"`);
+    const fn = claims.fileName.replace(/[\r\n"]/g, "_");
+    const asciiFallback = fn.replace(/[^\x20-\x7e]/g, "_");
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fn)}`
+    );
     return reply.send(stream);
   }
 );

@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply min-h-screen bg-gradient-to-br from-lilac via-mist to-mint font-sans text-slate-700;
+@font-face {
+  font-family: "Baba Pro";
+  src: url("../../Font/BabaPro-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen font-sans text-slate-800 antialiased;
+    background-color: #e0f2fe;
+    background-image:
+      radial-gradient(ellipse 120% 80% at 0% -20%, rgb(196 181 253 / 0.55), transparent 50%),
+      radial-gradient(ellipse 100% 60% at 100% 0%, rgb(125 211 252 / 0.5), transparent 45%),
+      radial-gradient(ellipse 80% 50% at 50% 100%, rgb(52 211 153 / 0.25), transparent 50%),
+      linear-gradient(165deg, #dbeafe 0%, #f5d0fe 42%, #cffafe 100%);
+    background-attachment: fixed;
+  }
 }

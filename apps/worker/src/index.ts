@@ -3,7 +3,13 @@ import path from "node:path";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { buildXlsx } from "@webapp/excel-export";
-import { consolidateXmls, emptyRow, type NfeRow } from "@webapp/nfe-core";
+import {
+  buildNfeExportFileName,
+  consolidateXmls,
+  emptyRow,
+  pickDominantEmit,
+  type NfeRow,
+} from "@webapp/nfe-core";
 import { QUEUE_NAME } from "@webapp/contracts";
 import { loadEnv } from "./env.js";
 
@@ -55,7 +61,9 @@ new Worker<NfeJobPayload>(
     await buildXlsx(allRows, outputPath);
     await job.updateProgress(100);
 
-    return { fileName: path.basename(outputPath) };
+    const { emitXNome, emitCnpj } = pickDominantEmit(allRows);
+    const fileName = buildNfeExportFileName(emitXNome, emitCnpj, new Date());
+    return { fileName };
   },
   {
     connection,

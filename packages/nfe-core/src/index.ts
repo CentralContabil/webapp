@@ -12,3 +12,9 @@ export {
   type XmlInput,
 } from "./consolidate.js";
 export { getOutName } from "./out-name.js";
+export {
+  buildNfeExportFileName,
+  formatLocalDate,
+  pickDominantEmit,
+  sanitizeWindowsFileBaseName,
+} from "./export-file-name.js";
