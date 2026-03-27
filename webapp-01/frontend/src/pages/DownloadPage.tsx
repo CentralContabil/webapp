@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { TitleNfeXmlXlsx } from "../components/TitleNfeXmlXlsx.js";
 import { ToolPageTitle } from "../components/ToolPageTitle.js";
-import { toolPageShellClass, toolProgressFillClass } from "../toolLayout.js";
+import { toolPageShellClass, toolPanelClass, toolProgressFillClass } from "../toolLayout.js";
 import {
   downloadUrl,
   getJob,
@@ -83,8 +83,8 @@ export default function DownloadPage() {
   const progressLabel =
     job?.status === "running"
       ? isSpedMerge
-        ? "Mesclando SPED…"
-        : "Gerando planilha…"
+        ? "Atualizando arquivo…"
+        : "Preparando planilha…"
       : job?.status === "queued"
         ? "Na fila…"
         : "Carregando…";
@@ -144,17 +144,17 @@ export default function DownloadPage() {
           )}
         </motion.div>
         <motion.p
-          className="mt-3 text-[15px] leading-relaxed text-slate-600"
+          className="mt-3 text-[15px] leading-relaxed text-[#1e3d4d]"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.14 }}
         >
-          {isSpedMerge ? "Download do arquivo SPED" : "Download da planilha"}
+          {isSpedMerge ? "Baixe o arquivo atualizado" : "Baixe a planilha"}
         </motion.p>
       </motion.header>
 
       <motion.div
-        className="rounded-2xl border border-white/50 bg-white/75 p-8 shadow-card backdrop-blur-xl"
+        className={`p-8 ${toolPanelClass}`}
         initial={{ opacity: 0, y: 22, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ ...transitionSmooth, delay: 0.1 }}
@@ -178,7 +178,7 @@ export default function DownloadPage() {
           {phase === "bad_id" && (
             <motion.p
               key="bad_id"
-              className="text-center text-slate-600"
+              className="text-center text-brand-hover/80"
               variants={panelVariants}
               initial="initial"
               animate="animate"
@@ -201,7 +201,7 @@ export default function DownloadPage() {
               transition={transitionSmooth}
             >
               <motion.p
-                className="text-center text-sm font-semibold text-indigo-600"
+                className="text-center text-sm font-semibold text-accent"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.06, ...transitionFast }}
@@ -209,7 +209,7 @@ export default function DownloadPage() {
                 {job ? progressLabel : "Carregando…"}
               </motion.p>
               <div
-                className="relative h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50"
+                className="relative h-3 w-full overflow-hidden rounded-full bg-brand-soft ring-1 ring-brand-line/70"
                 role="progressbar"
                 aria-valuetext={progressLabel}
                 aria-busy={!showDeterminateBar}
@@ -250,7 +250,7 @@ export default function DownloadPage() {
           {phase === "not_found" && (
             <motion.p
               key="not_found"
-              className="text-center font-medium text-slate-600"
+              className="text-center font-medium text-brand-hover/80"
               variants={panelVariants}
               initial="initial"
               animate="animate"
@@ -277,7 +277,9 @@ export default function DownloadPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={transitionFast}
               >
-                {isSpedMerge ? "Não foi possível mesclar o SPED" : "Não foi possível gerar a planilha"}
+                {isSpedMerge
+                  ? "Não foi possível atualizar o arquivo"
+                  : "Não foi possível gerar a planilha"}
               </motion.p>
               {job.error && (
                 <motion.p
@@ -303,7 +305,7 @@ export default function DownloadPage() {
               transition={transitionSmooth}
             >
               <motion.div
-                className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-3xl font-bold text-white shadow-btn ring-4 ring-emerald-300/50"
+                className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accentHi text-3xl font-bold text-white shadow-btn ring-4 ring-accentHi/45"
                 aria-hidden
                 initial={{ scale: 0.6, opacity: 0, rotate: -12 }}
                 animate={{ scale: 1, opacity: 1, rotate: 0 }}
@@ -316,19 +318,19 @@ export default function DownloadPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitionSmooth, delay: 0.12 }}
               >
-                <p className="font-display text-lg font-bold text-slate-800">
-                  {isSpedMerge ? "SPED pronto" : "Planilha pronta"}
+                <p className="font-display text-lg font-bold text-brand-ink">
+                  {isSpedMerge ? "Arquivo pronto" : "Planilha pronta"}
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-[#347891]">
                   {isSpedMerge
-                    ? "Baixe o arquivo .txt com as alterações da planilha aplicadas."
+                    ? "Suas alterações na planilha já estão aplicadas no arquivo para download."
                     : isSped
-                      ? "Baixe o arquivo XLSX gerado a partir do SPED .txt."
-                      : "Baixe o arquivo XLSX gerado a partir dos seus XMLs."}
+                      ? "Sua planilha está pronta para abrir no programa de planilhas."
+                      : "Sua planilha com os dados das notas está pronta para download."}
                 </p>
               </motion.div>
               <motion.a
-                className="flex w-full max-w-md flex-col items-center gap-2 rounded-full bg-gradient-to-r from-accent to-accentHi px-5 py-4 text-center text-white shadow-[0_6px_24px_-8px_rgb(79_70_229/0.55)]"
+                className="pill-grad-cyan flex w-full max-w-md flex-col items-center gap-2 rounded-full px-5 py-4 text-center text-white shadow-btn"
                 href={
                   isSpedMerge
                     ? spedMergeDownloadUrl(job.id, job.downloadToken)
@@ -351,7 +353,7 @@ export default function DownloadPage() {
                 whileTap={{ scale: 0.98 }}
               >
                 <span className="font-display text-[15px] font-bold uppercase tracking-wide">
-                  {isSpedMerge ? "Baixar SPED .txt" : "Baixar planilha"}
+                  {isSpedMerge ? "Baixar arquivo" : "Baixar planilha"}
                 </span>
                 <span className="w-full break-all font-sans text-[12px] font-medium normal-case leading-snug tracking-normal text-white/95">
                   {job.fileName ??
@@ -363,7 +365,7 @@ export default function DownloadPage() {
         </AnimatePresence>
 
         <motion.div
-          className="mt-8 border-t border-indigo-100/80 pt-6 text-center"
+          className="mt-8 border-t border-brand-line/80 pt-6 text-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ ...transitionSmooth, delay: 0.28 }}

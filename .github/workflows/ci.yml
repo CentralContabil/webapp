@@ -20,6 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: webapp-01/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
       - run: npm test
 
@@ -27,4 +28,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose -f webapp-01/docker-compose.yml build
+      - run: docker compose build
+      - run: docker compose --profile sped build

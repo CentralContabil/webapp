@@ -1,23 +1,35 @@
 /**
  * Layout compartilhado das páginas de ferramenta (upload + download).
- * Mantém largura, altura mínima e espaçamento iguais entre NFe e SPED.
+ * Cores alinhadas ao hub e ao fundo da página (#d6ebf3 · #eef6fb · bordas #dadee1 / #b9d8e1).
  */
 export const toolPageShellClass =
   "mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:py-12";
 
+/** Painel interno (lista de arquivos, blocos de ação) — mesmo “ar” do fundo azul-claro, não branco puro. */
+export const toolPanelClass =
+  "rounded-2xl border border-[#dadee1]/90 bg-[#eef6fb] shadow-[0_2px_12px_-2px_rgb(68_127_152/0.12)]";
+
 /** Área tracejada de upload (estados idle / drag). */
 export function toolDropzoneClass(isDragActive: boolean): string {
   const base =
-    "cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center shadow-card backdrop-blur-xl transition-colors";
+    "cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center shadow-[0_2px_12px_-2px_rgb(68_127_152/0.12)] transition-colors duration-200 [-webkit-tap-highlight-color:transparent]";
   return isDragActive
-    ? `${base} border-accent bg-white/50 shadow-card-hover ring-4 ring-accent/25`
-    : `${base} border-indigo-300/70 bg-white/65 shadow-card hover:border-accent/80 hover:bg-white/80 hover:shadow-card-hover`;
+    ? `${base} border-[#447f98] bg-[#d6ebf3] ring-4 ring-[#447f98]/18`
+    : `${base} border-[#b9d8e1] bg-[#eef6fb] hover:border-[#629bb5]/55 hover:bg-[#e8f4fa] hover:shadow-[0_6px_20px_-4px_rgb(68_127_152/0.14)]`;
 }
 
-/** Botão principal “Gerar planilha” — degradê índigo (alinhado ao hub). */
+/** Botão principal — degradê da paleta (alinhado ao hub). */
 export const toolPrimaryButtonClass =
-  "w-full shrink-0 rounded-full bg-gradient-to-r from-accent to-accentHi py-3.5 text-[15px] font-display font-bold uppercase tracking-wide text-white shadow-[0_6px_24px_-8px_rgb(79_70_229/0.55)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none";
+  "pill-grad-cyan w-full shrink-0 rounded-full py-3.5 text-[15px] font-display font-bold uppercase tracking-wide text-white shadow-btn disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none";
 
 /** Preenchimento da barra de progresso. */
 export const toolProgressFillClass =
   "h-full rounded-full bg-gradient-to-r from-accent via-accentHi to-accent2 shadow-glow";
+
+/** Caixa de erro — mantém alerta visível, mas fundo suave. */
+export const toolErrorPanelClass =
+  "rounded-2xl border border-rose-200/90 bg-[#fdf2f4] p-6 shadow-[0_2px_12px_-2px_rgb(225_100_100/0.1)]";
+
+/** Faixa de erro compacta (mensagem curta). */
+export const toolErrorBannerClass =
+  "rounded-2xl border border-rose-200/90 bg-[#fdeff1] px-4 py-3 text-sm font-medium text-rose-900 shadow-[0_2px_10px_-2px_rgb(225_100_100/0.08)]";

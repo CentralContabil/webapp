@@ -7,7 +7,10 @@ import { fileLabel, getFilesFromEvent } from "../dropFiles.js";
 import { TitleNfeXmlXlsx } from "../components/TitleNfeXmlXlsx.js";
 import {
   toolDropzoneClass,
+  toolErrorBannerClass,
+  toolErrorPanelClass,
   toolPageShellClass,
+  toolPanelClass,
   toolPrimaryButtonClass,
   toolProgressFillClass,
 } from "../toolLayout.js";
@@ -44,7 +47,7 @@ export default function HomePage() {
       if (n.endsWith(".xml") || n.endsWith(".zip")) return null;
       return {
         code: "file-invalid-type",
-        message: "Apenas .xml ou .zip na seleção",
+        message: "Escolha arquivos de nota fiscal ou um pacote",
       };
     },
   });
@@ -128,52 +131,51 @@ export default function HomePage() {
           <TitleNfeXmlXlsx size="home" />
         </motion.div>
         <motion.p
-          className="mt-3 text-[15px] leading-relaxed text-slate-600"
+          className="mt-3 text-[15px] leading-relaxed text-[#1e3d4d]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          Arraste XMLs, um ZIP ou uma pasta (só entram arquivos .xml; na raiz também
-          .zip). Outros tipos são ignorados.
+          Você pode arrastar vários arquivos de uma vez, um pacote ou uma pasta inteira. O que não for nota fiscal é
+          ignorado.
         </motion.p>
       </motion.header>
 
-      <motion.section
-        {...getRootProps()}
-        className={toolDropzoneClass(isDragActive)}
-        initial={{ opacity: 0, y: 20, scale: 0.98, filter: "blur(6px)" }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          scale: isDragActive ? 1.02 : 1,
-          filter: "blur(0px)",
-        }}
-        transition={isDragActive ? springSnappy : { ...transitionSmooth, delay: 0.12 }}
-        whileHover={{ scale: isDragActive ? 1.02 : 1.01 }}
-        whileTap={{ scale: 0.995 }}
-      >
-        <input {...getInputProps()} />
-        <motion.p
-          className="font-display font-semibold text-slate-800"
-          animate={{ opacity: 1, y: 0 }}
-          key={isDragActive ? "drag" : "idle"}
-          initial={{ opacity: 0.85, y: 4 }}
-          transition={transitionFast}
+      <section {...getRootProps()} className={toolDropzoneClass(isDragActive)}>
+        <motion.div
+          className="flex min-h-0 w-full flex-col"
+          initial={{ opacity: 0, y: 20, scale: 0.98, filter: "blur(6px)" }}
+          animate={{
+            opacity: 1,
+            y: 0,
+            scale: isDragActive ? 1.02 : 1,
+            filter: "blur(0px)",
+          }}
+          transition={isDragActive ? springSnappy : { ...transitionSmooth, delay: 0.12 }}
+          whileHover={{ scale: isDragActive ? 1.02 : 1.01 }}
+          whileTap={{ scale: 0.995 }}
         >
-          {isDragActive
-            ? "Solte os arquivos…"
-            : "Clique ou arraste XML, ZIP ou pasta com XMLs"}
-        </motion.p>
-        <p className="mt-2 text-sm text-slate-600">
-          Pastas: apenas .xml dentro da pasta; demais arquivos ignorados
-        </p>
-      </motion.section>
+          <input {...getInputProps()} />
+          <motion.p
+            className="font-display font-semibold text-brand-ink"
+            animate={{ opacity: 1, y: 0 }}
+            key={isDragActive ? "drag" : "idle"}
+            initial={{ opacity: 0.85, y: 4 }}
+            transition={transitionFast}
+          >
+            {isDragActive
+              ? "Solte os arquivos…"
+              : "Clique ou arraste arquivos, pacote ou pasta"}
+          </motion.p>
+          <p className="mt-2 text-sm text-[#347891]">Dentro de pastas, só entram arquivos de nota fiscal.</p>
+        </motion.div>
+      </section>
 
       <AnimatePresence mode="popLayout">
         {files.length > 0 && (
           <motion.div
             key="files-panel"
-            className="flex flex-col rounded-2xl border border-white/50 bg-white/75 p-4 shadow-card backdrop-blur-xl"
+            className={`flex flex-col p-4 ${toolPanelClass}`}
             initial={{ opacity: 0, y: 28, scale: 0.97, filter: "blur(8px)" }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, y: -16, scale: 0.98, filter: "blur(6px)" }}
@@ -196,7 +198,7 @@ export default function HomePage() {
                       delay: Math.min(i * 0.025, 0.35),
                     }}
                     exit={{ opacity: 0, x: 28, scale: 0.94, transition: transitionFast }}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/90 px-3 py-2 text-sm text-slate-800 ring-1 ring-slate-200/80"
+                    className="flex items-center justify-between gap-2 rounded-lg bg-brand-soft/90 px-3 py-2 text-sm text-brand-ink ring-1 ring-brand-line/60"
                   >
                     <span className="min-w-0 truncate" title={fileLabel(f)}>
                       {fileLabel(f)}
@@ -220,7 +222,7 @@ export default function HomePage() {
               disabled={busy}
               onClick={submit}
               className={`mt-4 ${toolPrimaryButtonClass}`}
-              whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(79 70 229 / 0.45)" }}
+              whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(42 79 96 / 0.2)" }}
               whileTap={busy ? undefined : { scale: 0.985 }}
               transition={springSnappy}
             >
@@ -238,7 +240,7 @@ export default function HomePage() {
                   transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <motion.p
-                    className="text-center text-xs font-semibold text-indigo-600"
+                    className="text-center text-xs font-semibold text-accent"
                     key={progressLabel}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -248,7 +250,7 @@ export default function HomePage() {
                     {progressLabel}
                   </motion.p>
                   <div
-                    className="relative h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50"
+                    className="relative h-3 w-full overflow-hidden rounded-full bg-brand-soft ring-1 ring-brand-line/70"
                     role="progressbar"
                     aria-valuetext={progressLabel}
                     aria-busy={!showDeterminateBar}
@@ -289,7 +291,7 @@ export default function HomePage() {
         {err && (
           <motion.p
             key="err"
-            className="rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50 to-orange-50 px-4 py-3 text-sm font-medium text-rose-900 shadow-card"
+            className={toolErrorBannerClass}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -304,7 +306,7 @@ export default function HomePage() {
         {job?.status === "failed" && (
           <motion.div
             key="failed"
-            className="rounded-2xl border border-rose-200/80 bg-white/80 p-6 shadow-card backdrop-blur-xl"
+            className={toolErrorPanelClass}
             initial={{ opacity: 0, y: 16, filter: "blur(6px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}

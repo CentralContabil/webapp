@@ -93,12 +93,22 @@ export function fileLabel(file: File): string {
   return w && w.length > 0 ? w : file.name;
 }
 
+function dataTransferFrom(event: unknown): DataTransfer | null {
+  const e = event as {
+    dataTransfer?: DataTransfer | null;
+    nativeEvent?: { dataTransfer?: DataTransfer | null };
+    target?: EventTarget | null;
+  };
+  return e.dataTransfer ?? e.nativeEvent?.dataTransfer ?? null;
+}
+
 /** NFe: `useDropzone({ getFilesFromEvent })` — arrastar + input. */
-export async function getFilesFromEvent(event: Event): Promise<File[]> {
-  if ("dataTransfer" in event && event.dataTransfer) {
-    return extractFromDataTransfer(event.dataTransfer, allowAtRoot, allowInsideFolder);
+export async function getFilesFromEvent(event: unknown): Promise<File[]> {
+  const dt = dataTransferFrom(event);
+  if (dt) {
+    return extractFromDataTransfer(dt, allowAtRoot, allowInsideFolder);
   }
-  const t = event.target as HTMLInputElement | null;
+  const t = (event as { target?: EventTarget | null }).target as HTMLInputElement | null;
   if (t?.files?.length) {
     return Array.from(t.files).filter(allowAtRoot);
   }
@@ -106,11 +116,12 @@ export async function getFilesFromEvent(event: Event): Promise<File[]> {
 }
 
 /** SPED: mesmo fluxo webkit, mas aceita só `.txt` (o handler NFe descartava .txt). */
-export async function getSpedFilesFromEvent(event: Event): Promise<File[]> {
-  if ("dataTransfer" in event && event.dataTransfer) {
-    return extractFromDataTransfer(event.dataTransfer, allowSpedTxt, allowSpedTxt);
+export async function getSpedFilesFromEvent(event: unknown): Promise<File[]> {
+  const dt = dataTransferFrom(event);
+  if (dt) {
+    return extractFromDataTransfer(dt, allowSpedTxt, allowSpedTxt);
   }
-  const t = event.target as HTMLInputElement | null;
+  const t = (event as { target?: EventTarget | null }).target as HTMLInputElement | null;
   if (t?.files?.length) {
     return Array.from(t.files).filter(allowSpedTxt);
   }

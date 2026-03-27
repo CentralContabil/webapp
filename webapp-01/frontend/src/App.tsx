@@ -1,17 +1,30 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/AppShell.js";
-import DownloadPage from "./pages/DownloadPage.js";
-import HomePage from "./pages/HomePage.js";
-import LegacyDownloadRedirect from "./pages/LegacyDownloadRedirect.js";
-import SpedHomePage from "./pages/SpedHomePage.js";
-import SpedMergeHomePage from "./pages/SpedMergeHomePage.js";
-import ToolsHubPage from "./pages/ToolsHubPage.js";
+
+const ToolsHubPage = lazy(() => import("./pages/ToolsHubPage.js"));
+const HomePage = lazy(() => import("./pages/HomePage.js"));
+const DownloadPage = lazy(() => import("./pages/DownloadPage.js"));
+const SpedHomePage = lazy(() => import("./pages/SpedHomePage.js"));
+const SpedMergeHomePage = lazy(() => import("./pages/SpedMergeHomePage.js"));
+const LegacyDownloadRedirect = lazy(() => import("./pages/LegacyDownloadRedirect.js"));
+
+function LegacyFallback() {
+  return null;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/download/:jobId" element={<LegacyDownloadRedirect />} />
+        <Route
+          path="/download/:jobId"
+          element={
+            <Suspense fallback={<LegacyFallback />}>
+              <LegacyDownloadRedirect />
+            </Suspense>
+          }
+        />
 
         <Route element={<AppShell />}>
           <Route path="/" element={<ToolsHubPage />} />

@@ -12,7 +12,7 @@ if errorlevel 1 (
 if not exist ".git\" (
   echo Repositorio Git nao esta nesta pasta.
   if exist "webapp-01\.git\" (
-    echo Execute uma vez: MIGRAR-GIT-PARA-RAIZ.bat
+    echo O .git esta em webapp-01: use Git de la ou mova a pasta .git para esta raiz webapp.
   ) else (
     echo Inicie com: git init
     echo   git remote add origin https://github.com/SEU_USUARIO/SEU_REPO.git
@@ -22,7 +22,7 @@ if not exist ".git\" (
 )
 
 echo.
-echo == git add -A (raiz webapp: 01 + 02 + 03) ==
+echo == git add -A: tudo na raiz do repo ^(novos, alterados, removidos^) ==
 git add -A
 if errorlevel 1 (
   echo Falha no git add.

@@ -7,7 +7,10 @@ import { fileLabel, getSpedFilesFromEvent } from "../dropFiles.js";
 import { ToolPageTitle } from "../components/ToolPageTitle.js";
 import {
   toolDropzoneClass,
+  toolErrorBannerClass,
+  toolErrorPanelClass,
   toolPageShellClass,
+  toolPanelClass,
   toolPrimaryButtonClass,
   toolProgressFillClass,
 } from "../toolLayout.js";
@@ -15,7 +18,6 @@ import {
   fadeUp,
   springSnappy,
   springSoft,
-  transitionFast,
   transitionSmooth,
 } from "../motion-variants.js";
 
@@ -44,7 +46,7 @@ export default function SpedMergeHomePage() {
     getFilesFromEvent: getSpedFilesFromEvent,
     validator: (file) => {
       if (file.name.toLowerCase().endsWith(".txt")) return null;
-      return { code: "file-invalid-type", message: "Apenas .txt SPED" };
+      return { code: "file-invalid-type", message: "Use o arquivo de texto da declaração" };
     },
   });
 
@@ -54,7 +56,7 @@ export default function SpedMergeHomePage() {
     multiple: false,
     validator: (file) => {
       if (file.name.toLowerCase().endsWith(".xlsx")) return null;
-      return { code: "file-invalid-type", message: "Apenas .xlsx" };
+      return { code: "file-invalid-type", message: "Use um arquivo de planilha" };
     },
   });
 
@@ -107,7 +109,7 @@ export default function SpedMergeHomePage() {
   const progressLabel = busy
     ? "Enviando arquivos…"
     : job?.status === "running"
-      ? "Mesclando SPED…"
+      ? "Atualizando arquivo…"
       : job?.status === "queued"
         ? "Na fila…"
         : "Aguarde…";
@@ -135,62 +137,63 @@ export default function SpedMergeHomePage() {
           <ToolPageTitle left="XLSX" right="SPED" size="home" />
         </motion.div>
         <motion.p
-          className="mt-3 text-[15px] leading-relaxed text-slate-600"
+          className="mt-3 text-[15px] leading-relaxed text-[#1e3d4d]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          Envie o <strong>SPED .txt original</strong> e o <strong>XLSX editado</strong> exportado pela ferramenta{" "}
-          <strong>SPED → XLSX</strong> (planilha com coluna <code className="rounded bg-slate-100 px-1">_LINHA</code>
-          ). O restante do arquivo que não está na planilha é preservado.
+          Primeiro o arquivo original da declaração; depois a planilha que você já alterou por aqui. O que você não
+          mexeu na planilha continua igual no arquivo final.
         </motion.p>
       </motion.header>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <motion.section
-          {...spedDrop.getRootProps()}
-          className={toolDropzoneClass(spedDrop.isDragActive)}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...transitionSmooth, delay: 0.1 }}
-        >
-          <input {...spedDrop.getInputProps({ accept: ".txt,text/plain" })} />
-          <p className="font-display text-sm font-semibold text-slate-800">1. SPED (.txt)</p>
-          <p className="mt-1 text-xs text-slate-600">
-            {spedDrop.isDragActive ? "Solte…" : "Clique ou arraste o .txt original"}
-          </p>
-          {spedFile && (
-            <p className="mt-2 truncate text-xs text-indigo-700" title={fileLabel(spedFile)}>
-              {fileLabel(spedFile)}
+        <section {...spedDrop.getRootProps()} className={toolDropzoneClass(spedDrop.isDragActive)}>
+          <motion.div
+            className="flex min-h-0 w-full flex-col"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...transitionSmooth, delay: 0.1 }}
+          >
+            <input {...spedDrop.getInputProps({ accept: ".txt,text/plain" })} />
+            <p className="font-display text-sm font-semibold text-brand-ink">1. Arquivo original</p>
+            <p className="mt-1 text-xs text-[#347891]">
+              {spedDrop.isDragActive ? "Solte…" : "Clique ou arraste o arquivo que ainda não foi editado"}
             </p>
-          )}
-        </motion.section>
+            {spedFile && (
+              <p className="mt-2 truncate text-xs text-accent" title={fileLabel(spedFile)}>
+                {fileLabel(spedFile)}
+              </p>
+            )}
+          </motion.div>
+        </section>
 
-        <motion.section
-          {...xlsxDrop.getRootProps()}
-          className={toolDropzoneClass(xlsxDrop.isDragActive)}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...transitionSmooth, delay: 0.14 }}
-        >
-          <input {...xlsxDrop.getInputProps({ accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })} />
-          <p className="font-display text-sm font-semibold text-slate-800">2. Planilha (.xlsx)</p>
-          <p className="mt-1 text-xs text-slate-600">
-            {xlsxDrop.isDragActive ? "Solte…" : "Mesma exportação SPED→XLSX, já editada"}
-          </p>
-          {xlsxFile && (
-            <p className="mt-2 truncate text-xs text-indigo-700" title={fileLabel(xlsxFile)}>
-              {fileLabel(xlsxFile)}
+        <section {...xlsxDrop.getRootProps()} className={toolDropzoneClass(xlsxDrop.isDragActive)}>
+          <motion.div
+            className="flex min-h-0 w-full flex-col"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...transitionSmooth, delay: 0.14 }}
+          >
+            <input {...xlsxDrop.getInputProps({ accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })} />
+            <p className="font-display text-sm font-semibold text-brand-ink">2. Planilha editada</p>
+            <p className="mt-1 text-xs text-[#347891]">
+              {xlsxDrop.isDragActive ? "Solte…" : "A que você baixou nesta conversão, já com suas alterações"}
             </p>
-          )}
-        </motion.section>
+            {xlsxFile && (
+              <p className="mt-2 truncate text-xs text-accent" title={fileLabel(xlsxFile)}>
+                {fileLabel(xlsxFile)}
+              </p>
+            )}
+          </motion.div>
+        </section>
       </div>
 
       <AnimatePresence mode="popLayout">
         {bothSelected && (
           <motion.div
             key="submit-panel"
-            className="flex flex-col rounded-2xl border border-white/50 bg-white/75 p-4 shadow-card backdrop-blur-xl"
+            className={`flex flex-col p-4 ${toolPanelClass}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -204,12 +207,12 @@ export default function SpedMergeHomePage() {
               whileHover={
                 busy || isProcessing
                   ? undefined
-                  : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(79 70 229 / 0.45)" }
+                  : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(42 79 96 / 0.2)" }
               }
               whileTap={busy || isProcessing ? undefined : { scale: 0.985 }}
               transition={springSnappy}
             >
-              {busy || isProcessing ? "Processando…" : "Mesclar e gerar SPED"}
+              {busy || isProcessing ? "Processando…" : "Gerar arquivo atualizado"}
             </motion.button>
           </motion.div>
         )}
@@ -219,15 +222,15 @@ export default function SpedMergeHomePage() {
         {isProcessing && (
           <motion.div
             key="progress"
-            className="space-y-2 rounded-2xl border border-white/50 bg-white/75 p-4 shadow-card backdrop-blur-xl"
+            className={`space-y-2 p-4 ${toolPanelClass}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={transitionSmooth}
           >
-            <p className="text-center text-xs font-semibold text-indigo-600">{progressLabel}</p>
+            <p className="text-center text-xs font-semibold text-accent">{progressLabel}</p>
             <div
-              className="relative h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50"
+              className="relative h-3 w-full overflow-hidden rounded-full bg-brand-soft ring-1 ring-brand-line/70"
               role="progressbar"
               aria-valuetext={progressLabel}
               aria-busy={!showDeterminateBar}
@@ -265,7 +268,7 @@ export default function SpedMergeHomePage() {
         {err && (
           <motion.p
             key="err"
-            className="rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50 to-orange-50 px-4 py-3 text-sm font-medium text-rose-900 shadow-card"
+            className={toolErrorBannerClass}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -280,7 +283,7 @@ export default function SpedMergeHomePage() {
         {job?.status === "failed" && (
           <motion.div
             key="failed"
-            className="rounded-2xl border border-rose-200/80 bg-white/80 p-6 shadow-card backdrop-blur-xl"
+            className={toolErrorPanelClass}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}

@@ -21,7 +21,7 @@
     "build": "npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/worker-sped-bridge && npm run build -w @webapp/worker-sped-merge-bridge && npm run build -w @webapp/frontend",
     "test": "npm run test -w @webapp/nfe-core --if-present",
     "test:sped-smoke": "node scripts/run-sped-smoke.cjs",
-    "lint": "echo \"lint opcional\""
+    "lint": "npm run lint -w @webapp/frontend"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

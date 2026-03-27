@@ -6,15 +6,9 @@ export const springSnappy = { type: "spring" as const, stiffness: 420, damping: 
 export const springSoft = { type: "spring" as const, stiffness: 280, damping: 28, mass: 1 };
 
 export const fadeUp = {
-  initial: { opacity: 0, y: 18, filter: "blur(6px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -10, filter: "blur(4px)" },
-};
-
-export const fadeScale = {
-  initial: { opacity: 0, scale: 0.96, y: 12 },
-  animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.96, y: -8 },
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
 };
 
 export const listParent = {

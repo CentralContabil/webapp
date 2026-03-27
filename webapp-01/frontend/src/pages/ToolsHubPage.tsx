@@ -1,8 +1,19 @@
-import { motion } from "framer-motion";
+import { ArrowRight, Combine, FileSpreadsheet, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchToolsManifest, type ToolManifestEntry } from "../api.js";
-import { listParent, listItem, transitionSmooth } from "../motion-variants.js";
+
+const TOOL_ICONS: Record<string, typeof FileSpreadsheet> = {
+  nfe: FileSpreadsheet,
+  sped: ScrollText,
+  "webapp-03": Combine,
+};
+
+const TOOL_ACCENT: Record<string, string> = {
+  nfe: "from-[#447f98] via-[#4f8aa3] to-[#629bb5]",
+  sped: "from-[#629bb5] via-[#5599b0] to-[#447f98]",
+  "webapp-03": "from-[#3d7390] to-[#629bb5]",
+};
 
 export default function ToolsHubPage() {
   const [tools, setTools] = useState<ToolManifestEntry[] | null>(null);
@@ -20,106 +31,87 @@ export default function ToolsHubPage() {
   const list = tools ?? [];
 
   return (
-    <div className="space-y-10">
-      <motion.div
-        className="text-center"
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...transitionSmooth, delay: 0.04 }}
-      >
-        <h1 className="font-display text-3xl font-bold text-slate-800 sm:text-4xl">
-          Ferramentas fiscais
+    <div className="space-y-10 sm:space-y-12">
+      <div className="text-center">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-[#183844] sm:text-3xl md:text-4xl">
+          Ferramentas <span className="text-[#347891]">fiscais</span>
         </h1>
-        <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-slate-600">
-          Escolha uma conversão. Cada ferramenta roda de forma independente — novas opções entram aqui
-          conforme forem disponibilizadas.
+        <p className="mx-auto mt-3 max-w-lg font-sans text-sm leading-relaxed text-[#1e3d4d] sm:text-[15px]">
+          Três conversões em um só lugar: envie os arquivos, acompanhe na tela e baixe o resultado quando estiver
+          pronto.
         </p>
-      </motion.div>
+      </div>
 
-      <motion.ul
-        className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
-        variants={listParent}
-        initial="hidden"
-        animate="show"
-      >
+      <ul className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-5 sm:grid-cols-2 md:max-w-6xl md:grid-cols-3 md:gap-6">
         {list.map((tool) => (
-          <motion.li key={tool.id} variants={listItem}>
+          <li key={tool.id} className="flex min-h-0">
             <ToolCard tool={tool} />
-          </motion.li>
+          </li>
         ))}
-      </motion.ul>
+      </ul>
     </div>
   );
 }
 
-function IconArrowRight({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconLock({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M10 1a4.5 4.5 0 00-4.5 4.5V7H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 function ToolCard({ tool }: { tool: ToolManifestEntry }) {
+  const Icon = TOOL_ICONS[tool.id] ?? FileSpreadsheet;
+  const accent = TOOL_ACCENT[tool.id] ?? TOOL_ACCENT.nfe;
+
   const inner = (
     <>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h2 className="font-display text-xl font-bold text-slate-800">{tool.title}</h2>
-          <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-accent">
-            {tool.subtitle}
-          </p>
+      <div className="relative flex flex-1 flex-col gap-4">
+        <div className="flex items-start gap-3.5">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${accent} text-white shadow-md ring-2 ring-white/60 transition-transform duration-200 group-hover:scale-[1.03] sm:h-14 sm:w-14`}
+            aria-hidden
+          >
+            <Icon className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="font-display text-lg font-bold leading-tight tracking-tight text-brand-inkStrong sm:text-xl">
+                {tool.title}
+              </h2>
+              {!tool.available && (
+                <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  Breve
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#347891]">{tool.subtitle}</p>
+          </div>
         </div>
-        {!tool.available && (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-            Em breve
-          </span>
-        )}
-      </div>
-      <p className="mt-3 text-sm leading-relaxed text-slate-600">{tool.description}</p>
-      <div className="mt-4 flex justify-end">
-        {tool.available ? (
-          <span className="pointer-events-none inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent to-accentHi px-3.5 py-1.5 text-[11px] font-display font-bold uppercase tracking-wide text-white shadow-[0_4px_16px_-6px_rgb(79_70_229/0.65)] transition duration-200 ease-out group-hover:shadow-[0_6px_22px_-6px_rgb(79_70_229/0.5)] group-hover:brightness-[1.06]">
-            Abrir
-            <IconArrowRight className="h-3 w-3 shrink-0 opacity-90 transition duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
-          </span>
-        ) : (
-          <span className="pointer-events-none inline-flex items-center gap-1.5 rounded-full bg-slate-200/90 px-3 py-1.5 text-[11px] font-bold text-slate-500">
-            <IconLock className="h-3 w-3 shrink-0 text-slate-400" />
-            Indisponível
+        <p className="relative font-sans text-sm leading-relaxed text-[#2a4f60] selection:bg-[#cfe8f4]">
+          {tool.description}
+        </p>
+        {tool.available && (
+          <span className="relative mt-auto flex items-center gap-1.5 text-sm font-semibold text-[#2d6a82] transition-all duration-200 group-hover:gap-2.5 group-hover:text-[#447f98]">
+            Abrir ferramenta
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </span>
         )}
       </div>
     </>
   );
 
+  const cardBase =
+    "group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl p-5 outline-none sm:min-h-[240px] sm:p-6";
+
+  const cardAvailable = `${cardBase} border border-[#dadee1]/90 bg-white shadow-[0_2px_12px_-2px_rgb(68_127_152/0.14)] transition-[transform,box-shadow,border-color] duration-200 [-webkit-tap-highlight-color:transparent] hover:-translate-y-0.5 hover:border-[#b9d8e1] hover:shadow-[0_10px_28px_-6px_rgb(68_127_152/0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#447f98]/55`;
+
+  const cardDisabled = `${cardBase} cursor-not-allowed border border-brand-line/60 bg-gradient-to-b from-brand-bg/50 to-brand-bg/25 opacity-85 shadow-[0_2px_12px_-4px_rgb(68_127_152/0.08)]`;
+
+  if (tool.available) {
+    return (
+      <Link to={tool.route} aria-label={`Abrir ${tool.title}`} className={`${cardAvailable} block h-full w-full`}>
+        {inner}
+      </Link>
+    );
+  }
+
   return (
-    <Link
-      to={tool.route}
-      aria-label={tool.available ? `Abrir ${tool.title}` : `${tool.title} — indisponível`}
-      className={`group block rounded-2xl border p-6 shadow-card backdrop-blur-xl outline-none transition duration-200 ${
-        tool.available
-          ? "border-white/60 bg-white/75 hover:border-accent/35 hover:shadow-card-hover"
-          : "border-slate-200/80 bg-white/55 opacity-95 hover:border-amber-200/80 hover:bg-white/70"
-      } focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50`}
-    >
+    <div className={cardDisabled} aria-label={`${tool.title} — indisponível`}>
       {inner}
-    </Link>
+    </div>
   );
 }
