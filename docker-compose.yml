@@ -1,0 +1,44 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      REDIS_URL: redis://redis:6379
+      TEMP_JOBS_ROOT: /data/jobs
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-minimo-16chars}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5176,http://192.168.0.47:5176}
+      MAX_UPLOAD_MB: "50"
+      MAX_XML_FILES: "5000"
+    volumes:
+      - job-data:/data/jobs
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: worker
+    environment:
+      REDIS_URL: redis://redis:6379
+      TEMP_JOBS_ROOT: /data/jobs
+    volumes:
+      - job-data:/data/jobs
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
+  job-data:
