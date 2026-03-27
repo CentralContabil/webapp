@@ -50,10 +50,17 @@ class XlsxWriterExcelWriter:
                 "valign": "vcenter",
                 "num_format": "#,##0.00"
             })
+            int_fmt = workbook.add_format({
+                "align": "center",
+                "valign": "vcenter",
+                "num_format": "0"
+            })
 
             for name, df in dataframes.items():
                 # Converte colunas 'VL_*' para número ANTES de escrever
                 for col in list(df.columns):
+                    if col == "_LINHA":
+                        continue
                     if isinstance(col, str) and col.upper().startswith("VL_"):
                         df[col] = df[col].map(_to_number)
 
@@ -72,7 +79,9 @@ class XlsxWriterExcelWriter:
                     else:
                         max_data = 0
                     maxlen = max(max_data, len(str(value)))
-                    if isinstance(value, str) and value.upper().startswith("VL_"):
+                    if value == "_LINHA":
+                        ws.set_column(col_num, col_num, min(14, max(8, maxlen + 2)), int_fmt)
+                    elif isinstance(value, str) and value.upper().startswith("VL_"):
                         ws.set_column(col_num, col_num, min(60, max(10, maxlen + 2)), num_fmt)
                     else:
                         ws.set_column(col_num, col_num, min(60, max(10, maxlen + 2)), cell_fmt)

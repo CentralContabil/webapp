@@ -32,7 +32,7 @@ class Processor:
             self.progress.tick_global(step_label=f"Registro {rec}")
             self.progress.reset_local()
             if mm:
-                for i, r in enumerate(rows, start=1):
+                for i, (_ln, r) in enumerate(rows, start=1):
                     if r and r[0].upper() != rec:
                         mismatches.append({"REGISTRO": rec, "LINHA_IDX": i, "VALOR_REG_ENCONTRADO": r[0]})
 
