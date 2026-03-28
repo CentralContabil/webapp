@@ -2,8 +2,10 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import {
   QUEUE_NAME,
+  SCI_CONSOLIDADO_QUEUE_NAME,
   SPED_MERGE_QUEUE_NAME,
   SPED_QUEUE_NAME,
+  type SciConsolidadoJobPayload,
   type SpedJobPayload,
   type SpedMergeJobPayload,
 } from "@webapp/contracts";
@@ -15,12 +17,13 @@ export type NfeJobPayload = {
   outputPath: string;
 };
 
-export type { SpedJobPayload, SpedMergeJobPayload };
+export type { SciConsolidadoJobPayload, SpedJobPayload, SpedMergeJobPayload };
 
 let connection: Redis | null = null;
 let queue: Queue<NfeJobPayload> | null = null;
 let spedQueue: Queue<SpedJobPayload> | null = null;
 let spedMergeQueue: Queue<SpedMergeJobPayload> | null = null;
+let sciConsolidadoQueue: Queue<SciConsolidadoJobPayload> | null = null;
 
 export function getRedis(env: Env): Redis {
   if (!connection) {
@@ -73,4 +76,18 @@ export function getSpedMergeQueue(env: Env): Queue<SpedMergeJobPayload> {
     });
   }
   return spedMergeQueue;
+}
+
+export function getSciConsolidadoQueue(env: Env): Queue<SciConsolidadoJobPayload> {
+  if (!sciConsolidadoQueue) {
+    sciConsolidadoQueue = new Queue<SciConsolidadoJobPayload>(SCI_CONSOLIDADO_QUEUE_NAME, {
+      connection: getRedis(env),
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: { count: 200 },
+        removeOnFail: { count: 100 },
+      },
+    });
+  }
+  return sciConsolidadoQueue;
 }

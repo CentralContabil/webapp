@@ -13,9 +13,11 @@ import { collectXmlFiles, extractZipSafe } from "./fs-utils.js";
 import {
   getQueue,
   getRedis,
+  getSciConsolidadoQueue,
   getSpedMergeQueue,
   getSpedQueue,
   type NfeJobPayload,
+  type SciConsolidadoJobPayload,
   type SpedJobPayload,
   type SpedMergeJobPayload,
 } from "./queue.js";
@@ -58,6 +60,7 @@ app.setErrorHandler((err, req, reply) => {
 const queue = getQueue(env);
 const spedQueue = getSpedQueue(env);
 const spedMergeQueue = getSpedMergeQueue(env);
+const sciConsolidadoQueue = getSciConsolidadoQueue(env);
 
 function jobDir(id: string): string {
   /** Absoluto para o payload BullMQ: o worker/Python usa outro cwd e paths relativos quebram (ex.: SPED). */
@@ -98,6 +101,15 @@ app.get(`${API_PREFIX}/tools`, async () => ({
       subtitle: "Mescla planilha no .txt",
       description: "Envie o arquivo original e a planilha que você editou; baixe o resultado pronto para reenviar.",
       route: "/tools/sped-merge",
+      available: true,
+    },
+    {
+      id: "sci-consolidado",
+      title: "Consolidado SCI",
+      subtitle: "Planilha SCI → Excel",
+      description:
+        "Envie a exportação SCI (CSV ou Excel). Receba ProdutosSCI.xlsx com abas Produtos, Base e Consolidado (SCI).",
+      route: "/tools/sci-consolidado",
       available: true,
     },
   ],
@@ -368,8 +380,8 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
     if (!claims || claims.jobId !== id) {
       return reply.code(401).send({ error: "Token inválido" });
     }
-    if (claims.tool === "sped" || claims.tool === "sped-merge") {
-      return reply.code(401).send({ error: "Use o endpoint de download da ferramenta SPED" });
+    if (claims.tool === "sped" || claims.tool === "sped-merge" || claims.tool === "sci-consolidado") {
+      return reply.code(401).send({ error: "Use o endpoint de download da ferramenta correspondente" });
     }
 
     const job = await queue.getJob(id);
@@ -584,6 +596,172 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
 
     const stream = fs.createReadStream(outPath);
     reply.header("Content-Type", "text/plain; charset=utf-8");
+    const fn = claims.fileName.replace(/[\r\n"]/g, "_");
+    const asciiFallback = fn.replace(/[^\x20-\x7e]/g, "_");
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fn)}`
+    );
+    return reply.send(stream);
+  }
+);
+
+const ALLOWED_SCI_EXT = new Set([".csv", ".txt", ".xlsx", ".xls"]);
+
+app.post<{ Querystring: { sheet?: string } }>(
+  `${API_PREFIX}/tools/sci-consolidado/jobs`,
+  async (req, reply) => {
+    const sheetName = req.query.sheet?.trim().slice(0, 120);
+    const jobId = randomUUID();
+    const inDir = path.join(jobDir(jobId), "in");
+    const outDir = path.join(jobDir(jobId), "out");
+
+    try {
+      const pong = await getRedis(env).ping();
+      if (pong !== "PONG") throw new Error("Redis não respondeu");
+    } catch (e) {
+      req.log.warn({ err: e }, "redis indisponível ao criar job SCI");
+      return reply.code(503).send({
+        error:
+          "Redis não está acessível. Inicie o Redis e o worker Consolidado SCI (worker-sci-consolidado + Python).",
+      });
+    }
+
+    await fs.promises.mkdir(inDir, { recursive: true });
+    await fs.promises.mkdir(outDir, { recursive: true });
+
+    let totalBytes = 0;
+    let fileCount = 0;
+    const parts = req.parts();
+    for await (const part of parts) {
+      if (part.type !== "file") continue;
+      fileCount += 1;
+      if (fileCount > 1) {
+        await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+        return reply.code(400).send({ error: "Envie apenas um arquivo por vez." });
+      }
+      const name = (part.filename ?? "entrada").replace(/[/\\]/g, "_");
+      const ext = path.extname(name).toLowerCase();
+      if (!ALLOWED_SCI_EXT.has(ext)) {
+        await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+        return reply.code(400).send({
+          error: "Formato não suportado. Use .csv, .txt, .xlsx ou .xls.",
+        });
+      }
+      const buf = await part.toBuffer();
+      totalBytes += buf.length;
+      if (totalBytes > env.MAX_UPLOAD_MB * 1024 * 1024) {
+        await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+        return reply.code(413).send({ error: "Arquivo muito grande" });
+      }
+      const dest = path.join(inDir, `entrada${ext}`);
+      await fs.promises.writeFile(dest, buf);
+    }
+
+    if (fileCount === 0) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+    }
+
+    const entries = await fs.promises.readdir(inDir);
+    const inputFile = entries.find((f) => f.startsWith("entrada."));
+    if (!inputFile) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      return reply.code(400).send({ error: "Arquivo de entrada não encontrado" });
+    }
+    const inputPath = path.join(inDir, inputFile);
+    const outputPath = path.join(outDir, "ProdutosSCI.xlsx");
+
+    const payload: SciConsolidadoJobPayload = {
+      jobId,
+      inputPath,
+      outputPath,
+      ...(sheetName && sheetName.length > 0 ? { sheetName } : {}),
+    };
+
+    try {
+      await Promise.race([
+        sciConsolidadoQueue.add("consolidado", payload, { jobId }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Fila timeout")), 15_000)
+        ),
+      ]);
+    } catch (e) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      req.log.error({ err: e }, "falha ao enfileirar job SCI");
+      return reply.code(503).send({
+        error:
+          "Não foi possível enfileirar o job. Verifique Redis e se o worker-sci-consolidado está rodando.",
+      });
+    }
+
+    return reply.code(202).send({ id: jobId, status: "queued" as const });
+  }
+);
+
+app.get<{ Params: { id: string } }>(`${API_PREFIX}/tools/sci-consolidado/jobs/:id`, async (req, reply) => {
+  const { id } = req.params;
+  const job = await sciConsolidadoQueue.getJob(id);
+  if (!job) {
+    return reply.code(404).send({
+      id,
+      status: "not_found" as const,
+    });
+  }
+  const state = await job.getState();
+  const status = mapBullState(state);
+  const progress =
+    typeof job.progress === "number" ? Math.round(job.progress) : undefined;
+
+  let downloadToken: string | undefined;
+  let fileName: string | undefined;
+  let error: string | undefined;
+
+  if (status === "done") {
+    const rv = job.returnvalue as { fileName?: string } | undefined;
+    fileName =
+      rv?.fileName ??
+      path.basename(String((job.data as SciConsolidadoJobPayload).outputPath ?? "ProdutosSCI.xlsx"));
+    downloadToken = await signDownloadToken(env, id, fileName, "sci-consolidado");
+  }
+  if (status === "failed") {
+    error = job.failedReason?.slice(0, 500) ?? "Falha no processamento";
+  }
+
+  return {
+    id,
+    status,
+    progress,
+    error,
+    downloadToken,
+    fileName,
+  };
+});
+
+app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
+  `${API_PREFIX}/tools/sci-consolidado/jobs/:id/download`,
+  async (req, reply) => {
+    const { id } = req.params;
+    const token = req.query.token;
+    if (!token) return reply.code(401).send({ error: "Token ausente" });
+
+    const claims = await verifyDownloadToken(env, token);
+    if (!claims || claims.jobId !== id || claims.tool !== "sci-consolidado") {
+      return reply.code(401).send({ error: "Token inválido" });
+    }
+
+    const job = await sciConsolidadoQueue.getJob(id);
+    if (!job || (await job.getState()) !== "completed") {
+      return reply.code(404).send({ error: "Job não concluído" });
+    }
+
+    const outPath = (job.data as SciConsolidadoJobPayload).outputPath;
+    if (!outPath || !fs.existsSync(outPath)) {
+      return reply.code(404).send({ error: "Arquivo não encontrado" });
+    }
+
+    const stream = fs.createReadStream(outPath);
+    reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     const fn = claims.fileName.replace(/[\r\n"]/g, "_");
     const asciiFallback = fn.replace(/[^\x20-\x7e]/g, "_");
     reply.header(

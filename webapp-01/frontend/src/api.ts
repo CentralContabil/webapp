@@ -85,6 +85,15 @@ function defaultToolsManifest(): ToolManifestEntry[] {
       route: "/tools/sped-merge",
       available: true,
     },
+    {
+      id: "sci-consolidado",
+      title: "Consolidado SCI",
+      subtitle: "Planilha SCI → Excel",
+      description:
+        "Envie a exportação SCI (CSV ou Excel). Receba ProdutosSCI.xlsx com Produtos, Base e Consolidado (SCI).",
+      route: "/tools/sci-consolidado",
+      available: true,
+    },
   ];
 }
 
@@ -93,8 +102,8 @@ const UPLOAD_TIMEOUT_MS = 180_000;
 function apiOfflineMessage(): string {
   return (
     "Não foi possível falar com a API em http://127.0.0.1:8000 (o Vite encaminha /api para lá). " +
-    "Na pasta webapp-01: npm run redis:up (Docker) e npm run dev (API + worker + Vite), ou npm run dev:stack. " +
-    "Só Vite: npm run dev:fe + npm run dev:backend noutro terminal. " +
+    "Na pasta webapp-01: npm run redis:up (Docker) e npm run dev (API + workers + Vite), ou npm run dev:stack. " +
+    "Inclui worker Consolidado SCI (Python). Só Vite: npm run dev:fe + npm run dev:backend noutro terminal. " +
     "Se a API já estiver no ar e forem muitos XMLs, o envio pode demorar — confira o terminal da API."
   );
 }
@@ -299,6 +308,78 @@ export async function getSpedMergeJob(id: string): Promise<JobResponse> {
     throw e;
   }
   return res.json() as Promise<JobResponse>;
+}
+
+export async function createSciConsolidadoJob(
+  file: File,
+  sheet?: string
+): Promise<{ id: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const q =
+    sheet && sheet.trim().length > 0
+      ? `?sheet=${encodeURIComponent(sheet.trim())}`
+      : "";
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sci-consolidado/jobs${q}`, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const aborted =
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (aborted) {
+      throw new Error(
+        `Envio excedeu ${Math.round(UPLOAD_TIMEOUT_MS / 60_000)} minutos. Verifique Redis, API e worker Consolidado SCI.`
+      );
+    }
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    let msg = (err as { error?: string }).error ?? res.statusText;
+    const relative = !baseUrl();
+    if (
+      relative &&
+      (res.status === 500 || res.status === 502 || res.status === 503) &&
+      (msg === "Internal Server Error" || msg.length < 3)
+    ) {
+      msg =
+        "API ou worker Consolidado SCI inativo. Na pasta webapp-01: npm run redis:up e npm run dev (inclui worker-sci-consolidado + Python).";
+    }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function getSciConsolidadoJob(id: string): Promise<JobResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sci-consolidado/jobs/${id}`);
+  } catch (e) {
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  }
+  return res.json() as Promise<JobResponse>;
+}
+
+export function sciConsolidadoDownloadUrl(id: string, token: string): string {
+  return `${baseUrl()}${API_PREFIX}/tools/sci-consolidado/jobs/${id}/download?token=${encodeURIComponent(token)}`;
 }
 
 export function downloadUrl(id: string, token: string): string {

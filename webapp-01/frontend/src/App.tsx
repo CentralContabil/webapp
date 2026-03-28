@@ -7,6 +7,7 @@ const HomePage = lazy(() => import("./pages/HomePage.js"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage.js"));
 const SpedHomePage = lazy(() => import("./pages/SpedHomePage.js"));
 const SpedMergeHomePage = lazy(() => import("./pages/SpedMergeHomePage.js"));
+const SciConsolidadoHomePage = lazy(() => import("./pages/SciConsolidadoHomePage.js"));
 const LegacyDownloadRedirect = lazy(() => import("./pages/LegacyDownloadRedirect.js"));
 
 function LegacyFallback() {
@@ -34,6 +35,8 @@ export default function App() {
           <Route path="/tools/sped/download/:jobId" element={<DownloadPage />} />
           <Route path="/tools/sped-merge" element={<SpedMergeHomePage />} />
           <Route path="/tools/sped-merge/download/:jobId" element={<DownloadPage />} />
+          <Route path="/tools/sci-consolidado" element={<SciConsolidadoHomePage />} />
+          <Route path="/tools/sci-consolidado/download/:jobId" element={<DownloadPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,7 +1,7 @@
 import * as jose from "jose";
 import type { Env } from "./env.js";
 
-export type DownloadTool = "nfe" | "sped" | "sped-merge";
+export type DownloadTool = "nfe" | "sped" | "sped-merge" | "sci-consolidado";
 
 export async function signDownloadToken(
   env: Env,
@@ -31,6 +31,7 @@ export async function verifyDownloadToken(
     let tool: DownloadTool = "nfe";
     if (rawTool === "sped") tool = "sped";
     else if (rawTool === "sped-merge") tool = "sped-merge";
+    else if (rawTool === "sci-consolidado") tool = "sci-consolidado";
     return { jobId, fileName, tool };
   } catch {
     return null;

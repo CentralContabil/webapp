@@ -7,8 +7,10 @@ import { toolPageShellClass, toolPanelClass, toolProgressFillClass } from "../to
 import {
   downloadUrl,
   getJob,
+  getSciConsolidadoJob,
   getSpedJob,
   getSpedMergeJob,
+  sciConsolidadoDownloadUrl,
   spedDownloadUrl,
   spedMergeDownloadUrl,
   type JobResponse,
@@ -26,7 +28,9 @@ type UiPhase =
 export default function DownloadPage() {
   const { pathname } = useLocation();
   const isSpedMerge = pathname.includes("/tools/sped-merge/download");
-  const isSped = pathname.includes("/tools/sped/download") && !isSpedMerge;
+  const isSci = pathname.includes("/tools/sci-consolidado/download");
+  const isSped =
+    pathname.includes("/tools/sped/download") && !isSpedMerge && !isSci;
   const { jobId: rawId } = useParams<{ jobId: string }>();
   const jobId = rawId ? decodeURIComponent(rawId) : "";
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -42,9 +46,11 @@ export default function DownloadPage() {
       try {
         const j = isSpedMerge
           ? await getSpedMergeJob(jobId)
-          : isSped
-            ? await getSpedJob(jobId)
-            : await getJob(jobId);
+          : isSci
+            ? await getSciConsolidadoJob(jobId)
+            : isSped
+              ? await getSpedJob(jobId)
+              : await getJob(jobId);
         if (cancelled) return;
         setLoadErr(null);
         setJob(j);
@@ -73,7 +79,7 @@ export default function DownloadPage() {
         timerRef.current = null;
       }
     };
-  }, [jobId, isSped, isSpedMerge]);
+  }, [jobId, isSped, isSpedMerge, isSci]);
 
   const showDeterminateBar =
     job?.status === "running" &&
@@ -84,7 +90,9 @@ export default function DownloadPage() {
     job?.status === "running"
       ? isSpedMerge
         ? "Atualizando arquivo…"
-        : "Preparando planilha…"
+        : isSci
+          ? "Gerando planilha SCI…"
+          : "Preparando planilha…"
       : job?.status === "queued"
         ? "Na fila…"
         : "Carregando…";
@@ -137,6 +145,8 @@ export default function DownloadPage() {
         >
           {isSpedMerge ? (
             <ToolPageTitle left="XLSX" right="SPED" size="download" />
+          ) : isSci ? (
+            <ToolPageTitle left="SCI" right="Excel" size="download" />
           ) : isSped ? (
             <ToolPageTitle left="SPED" right="XLSX" size="download" />
           ) : (
@@ -149,7 +159,11 @@ export default function DownloadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...transitionSmooth, delay: 0.14 }}
         >
-          {isSpedMerge ? "Baixe o arquivo atualizado" : "Baixe a planilha"}
+          {isSpedMerge
+            ? "Baixe o arquivo atualizado"
+            : isSci
+              ? "Baixe o ProdutosSCI.xlsx"
+              : "Baixe a planilha"}
         </motion.p>
       </motion.header>
 
@@ -324,9 +338,11 @@ export default function DownloadPage() {
                 <p className="mt-1 text-sm text-[#347891]">
                   {isSpedMerge
                     ? "Suas alterações na planilha já estão aplicadas no arquivo para download."
-                    : isSped
-                      ? "Sua planilha está pronta para abrir no programa de planilhas."
-                      : "Sua planilha com os dados das notas está pronta para download."}
+                    : isSci
+                      ? "O arquivo inclui as abas Produtos, Base e Consolidado (SCI)."
+                      : isSped
+                        ? "Sua planilha está pronta para abrir no programa de planilhas."
+                        : "Sua planilha com os dados das notas está pronta para download."}
                 </p>
               </motion.div>
               <motion.a
@@ -334,17 +350,31 @@ export default function DownloadPage() {
                 href={
                   isSpedMerge
                     ? spedMergeDownloadUrl(job.id, job.downloadToken)
-                    : isSped
-                      ? spedDownloadUrl(job.id, job.downloadToken)
-                      : downloadUrl(job.id, job.downloadToken)
+                    : isSci
+                      ? sciConsolidadoDownloadUrl(job.id, job.downloadToken)
+                      : isSped
+                        ? spedDownloadUrl(job.id, job.downloadToken)
+                        : downloadUrl(job.id, job.downloadToken)
                 }
                 download={
                   job.fileName ??
-                  (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")
+                  (isSpedMerge
+                    ? "SPED_mesclado.txt"
+                    : isSci
+                      ? "ProdutosSCI.xlsx"
+                      : isSped
+                        ? "SPED_Convertido.xlsx"
+                        : "NFE_Itens.xlsx")
                 }
                 title={
                   job.fileName ??
-                  (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")
+                  (isSpedMerge
+                    ? "SPED_mesclado.txt"
+                    : isSci
+                      ? "ProdutosSCI.xlsx"
+                      : isSped
+                        ? "SPED_Convertido.xlsx"
+                        : "NFE_Itens.xlsx")
                 }
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -357,7 +387,13 @@ export default function DownloadPage() {
                 </span>
                 <span className="w-full break-all font-sans text-[12px] font-medium normal-case leading-snug tracking-normal text-white/95">
                   {job.fileName ??
-                    (isSpedMerge ? "SPED_mesclado.txt" : isSped ? "SPED_Convertido.xlsx" : "NFE_Itens.xlsx")}
+                    (isSpedMerge
+                      ? "SPED_mesclado.txt"
+                      : isSci
+                        ? "ProdutosSCI.xlsx"
+                        : isSped
+                          ? "SPED_Convertido.xlsx"
+                          : "NFE_Itens.xlsx")}
                 </span>
               </motion.a>
             </motion.div>
@@ -372,7 +408,15 @@ export default function DownloadPage() {
         >
           <motion.div whileHover={{ x: -2 }} transition={transitionFast}>
             <Link
-              to={isSpedMerge ? "/tools/sped-merge" : isSped ? "/tools/sped" : "/tools/nfe"}
+              to={
+                isSpedMerge
+                  ? "/tools/sped-merge"
+                  : isSci
+                    ? "/tools/sci-consolidado"
+                    : isSped
+                      ? "/tools/sped"
+                      : "/tools/nfe"
+              }
               className="font-display text-sm font-bold text-accent underline-offset-4 hover:text-accent2 hover:underline"
             >
               ← Nova conversão

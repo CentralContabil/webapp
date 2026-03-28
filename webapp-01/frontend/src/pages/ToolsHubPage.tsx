@@ -1,4 +1,4 @@
-import { ArrowRight, Combine, FileSpreadsheet, ScrollText } from "lucide-react";
+import { ArrowRight, Combine, FileSpreadsheet, ScrollText, Table2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchToolsManifest, type ToolManifestEntry } from "../api.js";
@@ -7,12 +7,14 @@ const TOOL_ICONS: Record<string, typeof FileSpreadsheet> = {
   nfe: FileSpreadsheet,
   sped: ScrollText,
   "webapp-03": Combine,
+  "sci-consolidado": Table2,
 };
 
 const TOOL_ACCENT: Record<string, string> = {
   nfe: "from-[#447f98] via-[#4f8aa3] to-[#629bb5]",
   sped: "from-[#629bb5] via-[#5599b0] to-[#447f98]",
   "webapp-03": "from-[#3d7390] to-[#629bb5]",
+  "sci-consolidado": "from-[#4a7f95] via-[#5a8fab] to-[#447f98]",
 };
 
 export default function ToolsHubPage() {
@@ -37,12 +39,12 @@ export default function ToolsHubPage() {
           Ferramentas <span className="text-[#347891]">fiscais</span>
         </h1>
         <p className="mx-auto mt-3 max-w-lg font-sans text-sm leading-relaxed text-[#1e3d4d] sm:text-[15px]">
-          Três conversões em um só lugar: envie os arquivos, acompanhe na tela e baixe o resultado quando estiver
+          Conversões fiscais em um só lugar: envie os arquivos, acompanhe na tela e baixe o resultado quando estiver
           pronto.
         </p>
       </div>
 
-      <ul className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-5 sm:grid-cols-2 md:max-w-6xl md:grid-cols-3 md:gap-6">
+      <ul className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-5 sm:grid-cols-2 md:max-w-6xl md:grid-cols-2 lg:grid-cols-4 md:gap-6">
         {list.map((tool) => (
           <li key={tool.id} className="flex min-h-0">
             <ToolCard tool={tool} />

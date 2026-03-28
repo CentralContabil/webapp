@@ -10,6 +10,18 @@ export const SPED_QUEUE_NAME = "sped-convert" as const;
 /** XLSX (com _LINHA) + SPED .txt → SPED .txt mesclado (webapp-03). */
 export const SPED_MERGE_QUEUE_NAME = "sped-merge" as const;
 
+/** Planilha SCI (CSV/Excel) → ProdutosSCI.xlsx (Python). */
+export const SCI_CONSOLIDADO_QUEUE_NAME = "sci-consolidado" as const;
+
+export const SciConsolidadoJobPayloadSchema = z.object({
+  jobId: z.string(),
+  inputPath: z.string(),
+  outputPath: z.string(),
+  sheetName: z.string().optional(),
+});
+
+export type SciConsolidadoJobPayload = z.infer<typeof SciConsolidadoJobPayloadSchema>;
+
 export const SpedJobPayloadSchema = z.object({
   jobId: z.string(),
   inputPath: z.string(),
