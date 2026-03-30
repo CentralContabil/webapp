@@ -22,10 +22,47 @@ export const SciConsolidadoJobPayloadSchema = z.object({
 
 export type SciConsolidadoJobPayload = z.infer<typeof SciConsolidadoJobPayloadSchema>;
 
+/**
+ * Abas exportadas pelo motor SPED (webapp-02). Manter igual a `SHEET_ORDER` em
+ * `webapp-02/sped_engine/config.py`.
+ */
+export const SPED_EXPORT_SHEET_KEYS = [
+  "0150",
+  "0200",
+  "C100",
+  "C170",
+  "C190",
+  "C500",
+  "C590",
+  "D100",
+  "D190",
+  "D500",
+  "D590",
+] as const;
+
+export type SpedExportSheetKey = (typeof SPED_EXPORT_SHEET_KEYS)[number];
+
+/** Rótulos para seleção na UI (uma aba por registro). */
+export const SPED_EXPORT_SHEET_LABELS: Record<SpedExportSheetKey, string> = {
+  "0150": "0150 — Participantes",
+  "0200": "0200 — Itens (produtos/serviços)",
+  C100: "C100 — Documentos (NF-e modelo 55/65)",
+  C170: "C170 — Itens do documento",
+  C190: "C190 — Registro analítico (documento)",
+  C500: "C500 — Nota energia/gás/água",
+  C590: "C590 — Registro analítico (C500)",
+  D100: "D100 — Documentos transporte (CT-e)",
+  D190: "D190 — Registro analítico (CT-e)",
+  D500: "D500 — Nota serviço comunicação",
+  D590: "D590 — Registro analítico (D500)",
+};
+
 export const SpedJobPayloadSchema = z.object({
   jobId: z.string(),
   inputPath: z.string(),
   outputPath: z.string(),
+  /** Subconjunto de abas; omitir ou vazio = todas (comportamento legado). */
+  sheets: z.array(z.string()).optional(),
 });
 
 export type SpedJobPayload = z.infer<typeof SpedJobPayloadSchema>;

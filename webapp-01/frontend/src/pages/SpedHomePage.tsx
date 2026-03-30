@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
+import {
+  SPED_EXPORT_SHEET_KEYS,
+  SPED_EXPORT_SHEET_LABELS,
+} from "@webapp/contracts";
 import { createSpedJob, getSpedJob, type JobResponse } from "../api.js";
 import { fileLabel, getSpedFilesFromEvent } from "../dropFiles.js";
 import { ToolPageTitle } from "../components/ToolPageTitle.js";
@@ -25,14 +29,27 @@ import {
 export default function SpedHomePage() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
+  const [selectedSheets, setSelectedSheets] = useState<Set<string>>(
+    () => new Set(SPED_EXPORT_SHEET_KEYS)
+  );
   const [job, setJob] = useState<JobResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles(() => accepted.slice(0, 1));
+    setSelectedSheets(new Set(SPED_EXPORT_SHEET_KEYS));
     setErr(null);
   }, []);
+
+  const toggleSheet = (key: string) => {
+    setSelectedSheets((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -57,11 +74,13 @@ export default function SpedHomePage() {
   const submit = async () => {
     const f = files[0];
     if (!f) return;
+    if (selectedSheets.size === 0) return;
+    const sheetsOrdered = SPED_EXPORT_SHEET_KEYS.filter((k) => selectedSheets.has(k));
     setBusy(true);
     setErr(null);
     setJob(null);
     try {
-      const { id } = await createSpedJob(f);
+      const { id } = await createSpedJob(f, { sheets: sheetsOrdered });
       setJob({ id, status: "queued" });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -205,9 +224,54 @@ export default function SpedHomePage() {
                 </motion.li>
               ))}
             </ul>
+            <div className="mt-4 rounded-lg border border-brand-line/50 bg-white/80 p-3 text-left">
+              <p className="text-xs font-semibold text-brand-ink">
+                Abas da planilha (cada opção vira uma aba no Excel)
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
+                  onClick={() => setSelectedSheets(new Set(SPED_EXPORT_SHEET_KEYS))}
+                >
+                  Marcar todos
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
+                  onClick={() => setSelectedSheets(new Set())}
+                >
+                  Desmarcar todos
+                </button>
+              </div>
+              <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
+                {SPED_EXPORT_SHEET_KEYS.map((key) => (
+                  <li key={key} className="flex items-start gap-2">
+                    <input
+                      id={`sped-sheet-${key}`}
+                      type="checkbox"
+                      checked={selectedSheets.has(key)}
+                      onChange={() => toggleSheet(key)}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor={`sped-sheet-${key}`}
+                      className="cursor-pointer leading-snug text-brand-ink"
+                    >
+                      {SPED_EXPORT_SHEET_LABELS[key as keyof typeof SPED_EXPORT_SHEET_LABELS]}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {selectedSheets.size === 0 && (
+                <p className="mt-2 text-xs font-medium text-rose-600">
+                  Marque ao menos uma aba para gerar a planilha.
+                </p>
+              )}
+            </div>
             <motion.button
               type="button"
-              disabled={busy}
+              disabled={busy || selectedSheets.size === 0}
               onClick={submit}
               className={`mt-4 ${toolPrimaryButtonClass}`}
               whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(42 79 96 / 0.2)" }}

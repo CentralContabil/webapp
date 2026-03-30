@@ -6,7 +6,7 @@ import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import fs from "node:fs";
 import path from "node:path";
-import { API_PREFIX } from "@webapp/contracts";
+import { API_PREFIX, SPED_EXPORT_SHEET_KEYS } from "@webapp/contracts";
 import { getOutName } from "@webapp/nfe-core";
 import { loadEnv } from "./env.js";
 import { collectXmlFiles, extractZipSafe } from "./fs-utils.js";
@@ -22,6 +22,42 @@ import {
   type SpedMergeJobPayload,
 } from "./queue.js";
 import { signDownloadToken, verifyDownloadToken } from "./tokens.js";
+
+const SPED_SHEET_ALLOWED = new Set<string>(SPED_EXPORT_SHEET_KEYS);
+
+function parseAndValidateSpedSheets(
+  raw: string | undefined
+): { ok: true; sheets: string[] | undefined } | { ok: false; error: string } {
+  if (raw == null || raw.trim() === "") {
+    return { ok: true, sheets: undefined };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "Campo sheets deve ser JSON válido (array de strings)." };
+  }
+  if (!Array.isArray(parsed)) {
+    return { ok: false, error: "Campo sheets deve ser um array." };
+  }
+  if (parsed.length === 0) {
+    return { ok: true, sheets: undefined };
+  }
+  for (const x of parsed) {
+    if (typeof x !== "string" || !SPED_SHEET_ALLOWED.has(x)) {
+      return {
+        ok: false,
+        error: `Aba SPED inválida: ${typeof x === "string" ? JSON.stringify(x) : String(x)}`,
+      };
+    }
+  }
+  const requested = new Set(parsed as string[]);
+  const ordered = SPED_EXPORT_SHEET_KEYS.filter((k) => requested.has(k));
+  if (ordered.length === 0) {
+    return { ok: false, error: "Nenhuma aba válida em sheets." };
+  }
+  return { ok: true, sheets: ordered };
+}
 
 const env = loadEnv();
 const app = fastify({
@@ -272,8 +308,21 @@ app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
 
   let totalBytes = 0;
   let fileCount = 0;
+  let sheetsFieldRaw: string | undefined;
   const parts = req.parts();
   for await (const part of parts) {
+    if (part.type === "field") {
+      if (part.fieldname === "sheets") {
+        const v = part.value;
+        sheetsFieldRaw =
+          typeof v === "string"
+            ? v
+            : Buffer.isBuffer(v)
+              ? v.toString("utf8")
+              : String(v ?? "");
+      }
+      continue;
+    }
     if (part.type !== "file") continue;
     fileCount += 1;
     if (fileCount > 1) {
@@ -301,18 +350,27 @@ app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
     return reply.code(400).send({ error: "Nenhum arquivo enviado" });
   }
 
+  const sheetsParsed = parseAndValidateSpedSheets(sheetsFieldRaw);
+  if (!sheetsParsed.ok) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply.code(400).send({ error: sheetsParsed.error });
+  }
+
   const inputPath = path.join(inDir, "sped.txt");
   const outputPath = path.join(outDir, "SPED_Convertido.xlsx");
+
+  const payload: SpedJobPayload = {
+    jobId,
+    inputPath,
+    outputPath,
+    ...(sheetsParsed.sheets !== undefined ? { sheets: sheetsParsed.sheets } : {}),
+  };
 
   try {
     await Promise.race([
       spedQueue.add(
         "convert",
-        {
-          jobId,
-          inputPath,
-          outputPath,
-        } satisfies SpedJobPayload,
+        payload,
         { jobId }
       ),
       new Promise<never>((_, reject) =>

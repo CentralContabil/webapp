@@ -1,3 +1,5 @@
+import { SPED_EXPORT_SHEET_KEYS } from "@webapp/contracts";
+
 const API_PREFIX = "/api/v1";
 
 /**
@@ -187,9 +189,25 @@ export async function getJob(id: string): Promise<JobResponse> {
   return res.json() as Promise<JobResponse>;
 }
 
-export async function createSpedJob(file: File): Promise<{ id: string }> {
+function isFullSpedSheetSelection(sheets: string[]): boolean {
+  if (sheets.length !== SPED_EXPORT_SHEET_KEYS.length) return false;
+  const s = new Set(sheets);
+  return SPED_EXPORT_SHEET_KEYS.every((k) => s.has(k));
+}
+
+export async function createSpedJob(
+  file: File,
+  options?: { sheets?: string[] }
+): Promise<{ id: string }> {
   const fd = new FormData();
   fd.append("file", file);
+  if (
+    options?.sheets &&
+    options.sheets.length > 0 &&
+    !isFullSpedSheetSelection(options.sheets)
+  ) {
+    fd.append("sheets", JSON.stringify(options.sheets));
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);

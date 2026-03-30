@@ -147,7 +147,7 @@ export default function SpedMergeHomePage() {
         </motion.p>
       </motion.header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 max-[400px]:grid-cols-1">
         <section {...spedDrop.getRootProps()} className={toolDropzoneClass(spedDrop.isDragActive)}>
           <motion.div
             className="flex min-h-0 w-full flex-col"

@@ -2,17 +2,24 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-title Git push origin
+title Git add commit push
 
 if /i "%~1"=="--help" goto :help
 if /i "%~1"=="-h" goto :help
 if "%~1"=="/?" goto :help
 
-set "NO_REBASE=0"
-set "DID_STASH=0"
+set "SYNC_REMOTE=0"
 
 :parse_flags
-if /i "%~1"=="--no-rebase" set "NO_REBASE=1"& shift& goto parse_flags
+if /i "%~1"=="--sync" set "SYNC_REMOTE=1"& shift& goto parse_flags
+
+set "MSG="
+:build_msg
+if "%~1"=="" goto msg_done
+if defined MSG (set "MSG=!MSG! %~1") else set "MSG=%~1"
+shift
+goto build_msg
+:msg_done
 
 where git >nul 2>&1
 if errorlevel 1 (
@@ -46,13 +53,6 @@ echo  Branch:  !BRANCH!
 echo  Remote:  !REMOTE_URL!
 echo.
 
-git diff-index --quiet HEAD -- 2>nul
-if errorlevel 1 (
-  echo [AVISO] Ha alteracoes locais nao commitadas. Este script so faz push de commits ja existentes.
-  echo          Para commitar tudo antes: use um script de commit ou git add / git commit.
-  echo.
-)
-
 git status --short 2>nul
 echo.
 
@@ -62,14 +62,48 @@ if not errorlevel 1 (
   echo.
 )
 
-if "!NO_REBASE!"=="1" goto do_push
+echo == git add -A ==
+git add -A
+if errorlevel 1 (
+  echo [ERRO] git add falhou.
+  pause
+  exit /b 1
+)
 
+git diff --cached --quiet
+if not errorlevel 1 (
+  echo [INFO] Nada novo para commitar. Segue para push dos commits ja locais.
+  echo.
+  goto before_push
+)
+
+echo.
+git status --short
+echo.
+
+if not defined MSG (
+  set /p "MSG=Mensagem do commit: "
+)
+if "!MSG!"=="" set "MSG=chore: atualizacao"
+
+echo == git commit ==
+git commit -m "!MSG!"
+if errorlevel 1 (
+  echo [ERRO] Commit cancelado ou falhou.
+  pause
+  exit /b 1
+)
+
+:before_push
+if "!SYNC_REMOTE!"=="0" goto do_push
+
+set "DID_STASH=0"
 git status --porcelain 2>nul | findstr /r "." >nul
 if errorlevel 1 goto after_stash
-echo [INFO] Guardando alteracoes locais em stash antes do rebase (inclui arquivos novos)...
+echo [INFO] Guardando alteracoes locais em stash antes do rebase...
 git stash push -u -m "PUSH-GITHUB auto"
 if errorlevel 1 (
-  echo [ERRO] git stash falhou. Commit, descarte ou stash manualmente e tente de novo.
+  echo [ERRO] git stash falhou. Resolva com git status e tente de novo.
   pause
   exit /b 1
 )
@@ -79,25 +113,22 @@ set "DID_STASH=1"
 echo == git fetch origin ==
 git fetch origin
 if errorlevel 1 (
-  echo [AVISO] fetch falhou - verifique rede. Tentando push mesmo assim...
+  echo [AVISO] fetch falhou. Tentando push mesmo assim...
   echo.
   goto do_push
 )
 
 git rev-parse --verify "origin/!BRANCH!" >nul 2>&1
 if errorlevel 1 (
-  echo [INFO] Sem origin/!BRANCH! no remoto - pulando rebase. Comum no primeiro push.
+  echo [INFO] Sem origin/!BRANCH! no remoto - pulando rebase.
   echo.
 ) else (
   echo == git rebase origin/!BRANCH! ==
   git rebase "origin/!BRANCH!"
   if errorlevel 1 (
     echo.
-    echo [ERRO] Rebase interrompido. Resolva conflitos, depois:
-    echo   git add ...
-    echo   git rebase --continue
-    echo Ou cancele: git rebase --abort
-    if "!DID_STASH!"=="1" echo Suas alteracoes seguem em stash: git stash list
+    echo [ERRO] Rebase interrompido. Resolva conflitos ou: git rebase --abort
+    if "!DID_STASH!"=="1" echo Stash: git stash list
     pause
     exit /b 1
   )
@@ -110,7 +141,7 @@ echo == git push -u origin !BRANCH! ==
 git push -u origin "!BRANCH!"
 if errorlevel 1 (
   echo [ERRO] Push falhou. Verifique rede e credenciais.
-  if "!DID_STASH!"=="1" echo [INFO] Alteracoes locais ainda estao em stash: git stash list
+  if "!DID_STASH!"=="1" echo [INFO] Alteracoes podem estar em stash: git stash list
   pause
   exit /b 1
 )
@@ -119,32 +150,36 @@ if "!DID_STASH!"=="1" (
   echo.
   echo == git stash pop ==
   git stash pop
-  if errorlevel 1 echo [AVISO] Revise git status apos o stash pop.
+  if errorlevel 1 echo [AVISO] Revise git status apos stash pop.
   echo.
 )
 
 echo.
-echo [OK] Push concluido para origin na branch !BRANCH!.
+echo [OK] Concluido: add, commit quando houve mudancas, push na branch !BRANCH!.
 pause
 exit /b 0
 
 :help
 echo.
-echo  PUSH-GITHUB.bat - envia commits locais para origin / GitHub
+echo  PUSH-GITHUB.bat - git add -A, commit com mensagem, push para origin
 echo.
-echo  Fluxo: fetch, rebase em origin/BRANCH se existir, depois push -u origin BRANCH
-echo  Nao faz commit. Com alteracoes locais, faz stash antes do rebase e stash pop no fim.
+echo  Fluxo:
+echo    1. git add -A
+echo    2. Se houver algo no stage: pede mensagem (ou use argumentos na linha de comando^)
+echo    3. git commit -m "..."
+echo    4. git push -u origin BRANCH
+echo.
+echo  Opcional: --sync antes do passo 4 faz fetch + rebase em origin/BRANCH.
 echo.
 echo  Uso:
-echo    PUSH-GITHUB.bat [opcoes]
-echo.
-echo  Opcoes:
-echo    --no-rebase    Pula fetch e rebase; so executa push
-echo    --help         Esta ajuda
+echo    PUSH-GITHUB.bat [opcoes] [mensagem do commit...]
 echo.
 echo  Exemplos:
 echo    PUSH-GITHUB.bat
-echo    PUSH-GITHUB.bat --no-rebase
+echo    PUSH-GITHUB.bat feat: ajuste no hub
+echo    PUSH-GITHUB.bat --sync fix: correcao menor
+echo.
+echo  Sem mensagem na linha de comando, o script pergunta ao rodar.
 echo.
 pause
 exit /b 0

@@ -39,10 +39,14 @@ function runSpedCli(job: { updateProgress: (n: number) => Promise<void> }, data:
     const cliPath = path.join(cwd, "cli.py");
     const cmd = env.PYTHON_CMD.trim();
     const base = path.basename(cmd).replace(/\.exe$/i, "").toLowerCase();
+    const sheetsArg =
+      data.sheets !== undefined && data.sheets.length > 0
+        ? ["--sheets", data.sheets.join(",")]
+        : [];
     const args =
       base === "py"
-        ? ["-3", cliPath, "--input", inputPath, "--output", outputPath]
-        : [cliPath, "--input", inputPath, "--output", outputPath];
+        ? ["-3", cliPath, "--input", inputPath, "--output", outputPath, ...sheetsArg]
+        : [cliPath, "--input", inputPath, "--output", outputPath, ...sheetsArg];
 
     const child = spawn(cmd, args, {
       cwd,
