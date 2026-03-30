@@ -43,6 +43,20 @@ export const SPED_EXPORT_SHEET_KEYS = [
 export type SpedExportSheetKey = (typeof SPED_EXPORT_SHEET_KEYS)[number];
 
 /** Rótulos para seleção na UI (uma aba por registro). */
+/** Código REG SPED (4 caracteres alfanuméricos). */
+export const SPED_REG_CODE_RE = /^[0-9A-Z]{4}$/;
+
+export const SPED_MAX_SHEETS_PER_JOB = 128;
+export const SPED_MAX_PRESENT_REGS = 500;
+/** Limite do CSV repassado ao Python em --sheets. */
+export const SPED_MAX_SHEETS_CSV_BYTES = 8192;
+
+export const SpedInspectResponseSchema = z.object({
+  presentRegs: z.array(z.string()),
+});
+
+export type SpedInspectResponse = z.infer<typeof SpedInspectResponseSchema>;
+
 export const SPED_EXPORT_SHEET_LABELS: Record<SpedExportSheetKey, string> = {
   "0150": "0150 — Participantes",
   "0200": "0200 — Itens (produtos/serviços)",
@@ -63,6 +77,8 @@ export const SpedJobPayloadSchema = z.object({
   outputPath: z.string(),
   /** Subconjunto de abas; omitir ou vazio = todas (comportamento legado). */
   sheets: z.array(z.string()).optional(),
+  /** Último resultado de /tools/sped/inspect para o mesmo arquivo; obrigatório se sheets tiver REG fora do core. */
+  presentRegs: z.array(z.string()).optional(),
 });
 
 export type SpedJobPayload = z.infer<typeof SpedJobPayloadSchema>;

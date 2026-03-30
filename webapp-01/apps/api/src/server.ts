@@ -5,8 +5,16 @@ import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import fs from "node:fs";
+import readline from "node:readline";
 import path from "node:path";
-import { API_PREFIX, SPED_EXPORT_SHEET_KEYS } from "@webapp/contracts";
+import {
+  API_PREFIX,
+  SPED_EXPORT_SHEET_KEYS,
+  SPED_MAX_PRESENT_REGS,
+  SPED_MAX_SHEETS_CSV_BYTES,
+  SPED_MAX_SHEETS_PER_JOB,
+  SPED_REG_CODE_RE,
+} from "@webapp/contracts";
 import { getOutName } from "@webapp/nfe-core";
 import { loadEnv } from "./env.js";
 import { collectXmlFiles, extractZipSafe } from "./fs-utils.js";
@@ -22,41 +30,125 @@ import {
   type SpedMergeJobPayload,
 } from "./queue.js";
 import { signDownloadToken, verifyDownloadToken } from "./tokens.js";
+import { buildSpedXlsxFileName, extractSpedRazaoFromBuffer } from "./sped-filename.js";
 
-const SPED_SHEET_ALLOWED = new Set<string>(SPED_EXPORT_SHEET_KEYS);
+const SPED_CORE = new Set<string>(SPED_EXPORT_SHEET_KEYS);
 
-function parseAndValidateSpedSheets(
-  raw: string | undefined
-): { ok: true; sheets: string[] | undefined } | { ok: false; error: string } {
+function normalizeSpedReg(s: string): string | null {
+  const u = s.trim().toUpperCase();
+  return SPED_REG_CODE_RE.test(u) ? u : null;
+}
+
+function extractRegFromSpedLine(line: string): string | null {
+  if (!line.includes("|")) return null;
+  const fields = line.trimEnd().split("|");
+  if (fields.length < 3) return null;
+  const inner = fields.slice(1, -1);
+  const reg = (inner[0] || "").trim().toUpperCase();
+  return SPED_REG_CODE_RE.test(reg) ? reg : null;
+}
+
+function parseJsonRegArray(
+  raw: string | undefined,
+  fieldName: string
+): { ok: true; arr: string[] } | { ok: false; error: string } {
   if (raw == null || raw.trim() === "") {
-    return { ok: true, sheets: undefined };
+    return { ok: true, arr: [] };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { ok: false, error: "Campo sheets deve ser JSON válido (array de strings)." };
+    return { ok: false, error: `Campo ${fieldName} deve ser JSON válido (array de strings).` };
   }
   if (!Array.isArray(parsed)) {
-    return { ok: false, error: "Campo sheets deve ser um array." };
+    return { ok: false, error: `Campo ${fieldName} deve ser um array.` };
   }
-  if (parsed.length === 0) {
+  const out: string[] = [];
+  for (const x of parsed) {
+    if (typeof x !== "string") {
+      return { ok: false, error: `Campo ${fieldName}: cada item deve ser string.` };
+    }
+    const n = normalizeSpedReg(x);
+    if (!n) {
+      return { ok: false, error: `REG inválido em ${fieldName}: ${JSON.stringify(x)}` };
+    }
+    out.push(n);
+  }
+  return { ok: true, arr: out };
+}
+
+function dedupePreserveRegs(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const o: string[] = [];
+  for (const x of arr) {
+    if (seen.has(x)) continue;
+    seen.add(x);
+    o.push(x);
+  }
+  return o;
+}
+
+function validateSpedJobSheetsAndPresent(
+  sheetsRaw: string | undefined,
+  presentRegsRaw: string | undefined
+):
+  | { ok: true; sheets: string[] | undefined; presentRegs?: string[] }
+  | { ok: false; error: string } {
+  const sheetsP = parseJsonRegArray(sheetsRaw, "sheets");
+  if (!sheetsP.ok) return sheetsP;
+  let sheetsArr = dedupePreserveRegs(sheetsP.arr);
+  if (sheetsArr.length === 0) {
     return { ok: true, sheets: undefined };
   }
-  for (const x of parsed) {
-    if (typeof x !== "string" || !SPED_SHEET_ALLOWED.has(x)) {
+  if (sheetsArr.length > SPED_MAX_SHEETS_PER_JOB) {
+    return { ok: false, error: `No máximo ${SPED_MAX_SHEETS_PER_JOB} abas em sheets.` };
+  }
+
+  const needsPresent = sheetsArr.some((s) => !SPED_CORE.has(s));
+  const pr = parseJsonRegArray(presentRegsRaw, "presentRegs");
+  if (!pr.ok) return pr;
+  const presentRegs = dedupePreserveRegs(pr.arr);
+  if (needsPresent && presentRegs.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Envie presentRegs (JSON) com os REGs do arquivo quando sheets incluir blocos fora dos 11 principais (use POST /tools/sped/inspect no mesmo ficheiro).",
+    };
+  }
+  if (presentRegs.length > SPED_MAX_PRESENT_REGS) {
+    return { ok: false, error: `No máximo ${SPED_MAX_PRESENT_REGS} itens em presentRegs.` };
+  }
+  const prSet = new Set(presentRegs);
+  for (const s of sheetsArr) {
+    if (!SPED_CORE.has(s) && !prSet.has(s)) {
       return {
         ok: false,
-        error: `Aba SPED inválida: ${typeof x === "string" ? JSON.stringify(x) : String(x)}`,
+        error: `Aba ${s} não está nos 11 principais e não consta em presentRegs.`,
       };
     }
   }
-  const requested = new Set(parsed as string[]);
-  const ordered = SPED_EXPORT_SHEET_KEYS.filter((k) => requested.has(k));
-  if (ordered.length === 0) {
-    return { ok: false, error: "Nenhuma aba válida em sheets." };
+
+  const csv = sheetsArr.join(",");
+  if (Buffer.byteLength(csv, "utf8") > SPED_MAX_SHEETS_CSV_BYTES) {
+    return { ok: false, error: "Lista de abas excede o tamanho máximo permitido." };
   }
-  return { ok: true, sheets: ordered };
+
+  const orderedCore = SPED_EXPORT_SHEET_KEYS.filter((k) => sheetsArr.includes(k));
+  const seenExtra = new Set<string>();
+  const orderedExtras: string[] = [];
+  for (const s of sheetsArr) {
+    if (SPED_CORE.has(s)) continue;
+    if (seenExtra.has(s)) continue;
+    seenExtra.add(s);
+    orderedExtras.push(s);
+  }
+  const sheetsOrdered = [...orderedCore, ...orderedExtras];
+
+  if (needsPresent) {
+    return { ok: true, sheets: sheetsOrdered, presentRegs };
+  }
+  return { ok: true, sheets: sheetsOrdered };
 }
 
 const env = loadEnv();
@@ -287,6 +379,44 @@ app.get<{ Params: { id: string } }>(`${API_PREFIX}/jobs/:id`, async (req, reply)
   };
 });
 
+app.post(`${API_PREFIX}/tools/sped/inspect`, async (req, reply) => {
+  const parts = req.parts();
+  let gotFile = false;
+  const regs = new Set<string>();
+  let totalBytes = 0;
+  const maxBytes = env.MAX_UPLOAD_MB * 1024 * 1024;
+  for await (const part of parts) {
+    if (part.type !== "file") continue;
+    if (gotFile) {
+      return reply.code(400).send({ error: "Envie apenas um arquivo .txt por vez." });
+    }
+    gotFile = true;
+    const lower = (part.filename ?? "").toLowerCase();
+    if (!lower.endsWith(".txt")) {
+      return reply.code(400).send({ error: "Apenas arquivos .txt são aceitos." });
+    }
+    const rl = readline.createInterface({
+      input: part.file,
+      crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
+      totalBytes += Buffer.byteLength(line, "utf8") + 1;
+      if (totalBytes > maxBytes) {
+        return reply.code(413).send({ error: "Arquivo muito grande" });
+      }
+      const r = extractRegFromSpedLine(line);
+      if (r) regs.add(r);
+    }
+  }
+  if (!gotFile) {
+    return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+  }
+  const presentRegs = [...regs].sort((a, b) =>
+    a.localeCompare(b, "en", { numeric: true })
+  );
+  return { presentRegs };
+});
+
 app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
   const jobId = randomUUID();
   const inDir = path.join(jobDir(jobId), "in");
@@ -308,13 +438,24 @@ app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
 
   let totalBytes = 0;
   let fileCount = 0;
+  let spedUploadBuf: Buffer | null = null;
   let sheetsFieldRaw: string | undefined;
+  let presentRegsFieldRaw: string | undefined;
   const parts = req.parts();
   for await (const part of parts) {
     if (part.type === "field") {
       if (part.fieldname === "sheets") {
         const v = part.value;
         sheetsFieldRaw =
+          typeof v === "string"
+            ? v
+            : Buffer.isBuffer(v)
+              ? v.toString("utf8")
+              : String(v ?? "");
+      }
+      if (part.fieldname === "presentRegs") {
+        const v = part.value;
+        presentRegsFieldRaw =
           typeof v === "string"
             ? v
             : Buffer.isBuffer(v)
@@ -343,6 +484,7 @@ app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
     }
     const dest = path.join(inDir, "sped.txt");
     await fs.promises.writeFile(dest, buf);
+    spedUploadBuf = buf;
   }
 
   if (fileCount === 0) {
@@ -350,20 +492,25 @@ app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {
     return reply.code(400).send({ error: "Nenhum arquivo enviado" });
   }
 
-  const sheetsParsed = parseAndValidateSpedSheets(sheetsFieldRaw);
+  const sheetsParsed = validateSpedJobSheetsAndPresent(sheetsFieldRaw, presentRegsFieldRaw);
   if (!sheetsParsed.ok) {
     await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
     return reply.code(400).send({ error: sheetsParsed.error });
   }
 
   const inputPath = path.join(inDir, "sped.txt");
-  const outputPath = path.join(outDir, "SPED_Convertido.xlsx");
+  const razao =
+    spedUploadBuf !== null ? extractSpedRazaoFromBuffer(spedUploadBuf) : null;
+  const outputPath = path.join(outDir, buildSpedXlsxFileName(razao, new Date()));
 
   const payload: SpedJobPayload = {
     jobId,
     inputPath,
     outputPath,
     ...(sheetsParsed.sheets !== undefined ? { sheets: sheetsParsed.sheets } : {}),
+    ...(sheetsParsed.presentRegs !== undefined && sheetsParsed.presentRegs.length > 0
+      ? { presentRegs: sheetsParsed.presentRegs }
+      : {}),
   };
 
   try {

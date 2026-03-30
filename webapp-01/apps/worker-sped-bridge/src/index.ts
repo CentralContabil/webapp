@@ -3,7 +3,11 @@ import path from "node:path";
 import * as readline from "node:readline";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
-import { SPED_QUEUE_NAME, type SpedJobPayload } from "@webapp/contracts";
+import {
+  SPED_MAX_SHEETS_CSV_BYTES,
+  SPED_QUEUE_NAME,
+  type SpedJobPayload,
+} from "@webapp/contracts";
 import { loadEnv } from "./env.js";
 
 const env = loadEnv();
@@ -39,10 +43,13 @@ function runSpedCli(job: { updateProgress: (n: number) => Promise<void> }, data:
     const cliPath = path.join(cwd, "cli.py");
     const cmd = env.PYTHON_CMD.trim();
     const base = path.basename(cmd).replace(/\.exe$/i, "").toLowerCase();
-    const sheetsArg =
-      data.sheets !== undefined && data.sheets.length > 0
-        ? ["--sheets", data.sheets.join(",")]
-        : [];
+    const sheetsCsv =
+      data.sheets !== undefined && data.sheets.length > 0 ? data.sheets.join(",") : "";
+    if (Buffer.byteLength(sheetsCsv, "utf8") > SPED_MAX_SHEETS_CSV_BYTES) {
+      reject(new Error("Lista de abas (--sheets) excede o tamanho máximo permitido."));
+      return;
+    }
+    const sheetsArg = sheetsCsv.length > 0 ? ["--sheets", sheetsCsv] : [];
     const args =
       base === "py"
         ? ["-3", cliPath, "--input", inputPath, "--output", outputPath, ...sheetsArg]

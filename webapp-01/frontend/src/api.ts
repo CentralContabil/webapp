@@ -1,4 +1,28 @@
-import { SPED_EXPORT_SHEET_KEYS } from "@webapp/contracts";
+import { SPED_EXPORT_SHEET_KEYS, SPED_REG_CODE_RE } from "@webapp/contracts";
+
+/** Limite ao ler o .txt no navegador quando a API não tem POST /tools/sped/inspect (404). */
+const SPED_INSPECT_LOCAL_MAX_BYTES = 80 * 1024 * 1024;
+
+function extractRegFromSpedLine(line: string): string | null {
+  if (!line.includes("|")) return null;
+  const fields = line.trimEnd().split("|");
+  if (fields.length < 3) return null;
+  const inner = fields.slice(1, -1);
+  const reg = (inner[0] || "").trim().toUpperCase();
+  return SPED_REG_CODE_RE.test(reg) ? reg : null;
+}
+
+/** Mesma lógica que a API; usada só como fallback se o servidor estiver desatualizado. */
+export async function scanSpedPresentRegsLocal(file: File): Promise<string[]> {
+  const n = Math.min(file.size, SPED_INSPECT_LOCAL_MAX_BYTES);
+  const text = await file.slice(0, n).text();
+  const regs = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const r = extractRegFromSpedLine(line);
+    if (r) regs.add(r);
+  }
+  return [...regs].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+}
 
 const API_PREFIX = "/api/v1";
 
@@ -210,24 +234,90 @@ export async function getJob(id: string): Promise<JobResponse> {
   return res.json() as Promise<JobResponse>;
 }
 
-function isFullSpedSheetSelection(sheets: string[]): boolean {
+const SPED_CORE_SET = new Set<string>(SPED_EXPORT_SHEET_KEYS);
+
+/** Envia todas as abas principais na ordem padrão; a API omite `sheets` (comportamento legado). */
+function isFullCoreSpedSelection(sheets: string[]): boolean {
   if (sheets.length !== SPED_EXPORT_SHEET_KEYS.length) return false;
   const s = new Set(sheets);
   return SPED_EXPORT_SHEET_KEYS.every((k) => s.has(k));
 }
 
+export type SpedInspectResult = {
+  presentRegs: string[];
+  /** Servidor sem rota /tools/sped/inspect; lista veio do navegador. */
+  localFallback?: boolean;
+};
+
+export async function inspectSpedFile(file: File): Promise<SpedInspectResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped/inspect`, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const aborted =
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (aborted) {
+      throw new Error(
+        `Leitura do SPED excedeu ${Math.round(UPLOAD_TIMEOUT_MS / 60_000)} minutos. Verifique a API em :8000.`
+      );
+    }
+    if (!baseUrl() && isFetchNetworkError(e)) {
+      throw new Error(apiOfflineMessage());
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (res.ok) {
+    const data = (await res.json()) as { presentRegs?: string[] };
+    const presentRegs = Array.isArray(data.presentRegs) ? data.presentRegs : [];
+    return { presentRegs };
+  }
+
+  /** 404/405 = API antiga sem inspect — lista blocos no cliente (inclui K010, K100, K200, …). */
+  if (res.status === 404 || res.status === 405) {
+    const presentRegs = await scanSpedPresentRegsLocal(file);
+    return { presentRegs, localFallback: true };
+  }
+
+  const err = await res.json().catch(() => ({}));
+  throw new Error((err as { error?: string }).error ?? res.statusText);
+}
+
 export async function createSpedJob(
   file: File,
-  options?: { sheets?: string[] }
+  options?: { sheets?: string[]; presentRegs?: string[] }
 ): Promise<{ id: string }> {
   const fd = new FormData();
   fd.append("file", file);
-  if (
-    options?.sheets &&
-    options.sheets.length > 0 &&
-    !isFullSpedSheetSelection(options.sheets)
-  ) {
-    fd.append("sheets", JSON.stringify(options.sheets));
+  const sheets = options?.sheets;
+  const hasNonCore =
+    sheets !== undefined &&
+    sheets.length > 0 &&
+    sheets.some((s) => !SPED_CORE_SET.has(s));
+  if (hasNonCore) {
+    const pr = options?.presentRegs;
+    if (pr === undefined || pr.length === 0) {
+      throw new Error(
+        "Falta a lista de REGs do arquivo (presentRegs). Recarregue o ficheiro ou tente inspecionar de novo."
+      );
+    }
+    fd.append("presentRegs", JSON.stringify(pr));
+  }
+  if (sheets && sheets.length > 0 && !isFullCoreSpedSelection(sheets)) {
+    fd.append("sheets", JSON.stringify(sheets));
   }
 
   const controller = new AbortController();

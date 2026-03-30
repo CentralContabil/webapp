@@ -6,7 +6,12 @@ import {
   SPED_EXPORT_SHEET_KEYS,
   SPED_EXPORT_SHEET_LABELS,
 } from "@webapp/contracts";
-import { createSpedJob, getSpedJob, type JobResponse } from "../api.js";
+import {
+  createSpedJob,
+  getSpedJob,
+  inspectSpedFile,
+  type JobResponse,
+} from "../api.js";
 import { fileLabel, getSpedFilesFromEvent } from "../dropFiles.js";
 import { ToolPageTitle } from "../components/ToolPageTitle.js";
 import {
@@ -26,6 +31,8 @@ import {
   transitionSmooth,
 } from "../motion-variants.js";
 
+const SPED_CORE_LIST = SPED_EXPORT_SHEET_KEYS as readonly string[];
+
 export default function SpedHomePage() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
@@ -35,11 +42,41 @@ export default function SpedHomePage() {
   const [job, setJob] = useState<JobResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** `null` = inspeção ainda não terminou para o ficheiro atual */
+  const [presentRegs, setPresentRegs] = useState<string[] | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+  const [inspectErr, setInspectErr] = useState<string | null>(null);
+  /** Aviso quando a API não tem /inspect e usámos leitura local (ex.: 404). */
+  const [inspectNotice, setInspectNotice] = useState<string | null>(null);
 
   const onDrop = useCallback((accepted: File[]) => {
-    setFiles(() => accepted.slice(0, 1));
+    const f = accepted.slice(0, 1)[0];
+    if (!f) return;
+    setFiles([f]);
     setSelectedSheets(new Set(SPED_EXPORT_SHEET_KEYS));
     setErr(null);
+    setInspectErr(null);
+    setInspectNotice(null);
+    setPresentRegs(null);
+    void (async () => {
+      setInspecting(true);
+      try {
+        const { presentRegs: regs, localFallback } = await inspectSpedFile(f);
+        setPresentRegs(regs);
+        if (localFallback) {
+          setInspectNotice(
+            "O servidor ainda não expõe a rota de inspeção (ou respondeu 404). " +
+              "Os blocos foram listados no navegador. Reinicie a API após atualizar o código para usar inspeção no servidor. " +
+              "Arquivos acima de ~80 MB: só os primeiros megabytes são varridos no modo local."
+          );
+        }
+      } catch (e) {
+        setInspectErr(e instanceof Error ? e.message : String(e));
+        setPresentRegs([]);
+      } finally {
+        setInspecting(false);
+      }
+    })();
   }, []);
 
   const toggleSheet = (key: string) => {
@@ -69,18 +106,33 @@ export default function SpedHomePage() {
 
   const removeFile = () => {
     setFiles([]);
+    setPresentRegs(null);
+    setInspectErr(null);
+    setInspectNotice(null);
+    setInspecting(false);
   };
+
+  const extraRegs = (presentRegs ?? []).filter((r) => !SPED_CORE_LIST.includes(r));
 
   const submit = async () => {
     const f = files[0];
     if (!f) return;
     if (selectedSheets.size === 0) return;
-    const sheetsOrdered = SPED_EXPORT_SHEET_KEYS.filter((k) => selectedSheets.has(k));
+    if (inspecting || presentRegs === null) return;
+    const coreOrder = SPED_EXPORT_SHEET_KEYS.filter((k) => selectedSheets.has(k));
+    const extrasOrdered = presentRegs.filter(
+      (r) => selectedSheets.has(r) && !SPED_CORE_LIST.includes(r)
+    );
+    const sheetsOrdered = [...coreOrder, ...extrasOrdered];
+    const needsPresentRegs = sheetsOrdered.some((s) => !SPED_CORE_LIST.includes(s));
     setBusy(true);
     setErr(null);
     setJob(null);
     try {
-      const { id } = await createSpedJob(f, { sheets: sheetsOrdered });
+      const { id } = await createSpedJob(f, {
+        sheets: sheetsOrdered,
+        ...(needsPresentRegs ? { presentRegs } : {}),
+      });
       setJob({ id, status: "queued" });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -110,6 +162,7 @@ export default function SpedHomePage() {
 
   const isProcessing =
     busy ||
+    inspecting ||
     (job != null &&
       job.status !== "not_found" &&
       job.status !== "done" &&
@@ -122,7 +175,9 @@ export default function SpedHomePage() {
 
   const progressLabel = busy
     ? "Enviando arquivo…"
-    : job?.status === "running"
+    : inspecting
+      ? "A ler blocos do arquivo…"
+      : job?.status === "running"
       ? "Gerando planilha…"
       : job?.status === "queued"
         ? "Na fila…"
@@ -232,7 +287,11 @@ export default function SpedHomePage() {
                 <button
                   type="button"
                   className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
-                  onClick={() => setSelectedSheets(new Set(SPED_EXPORT_SHEET_KEYS))}
+                  onClick={() => {
+                    const n = new Set(SPED_EXPORT_SHEET_KEYS);
+                    for (const r of extraRegs) n.add(r);
+                    setSelectedSheets(n);
+                  }}
                 >
                   Marcar todos
                 </button>
@@ -263,6 +322,41 @@ export default function SpedHomePage() {
                   </li>
                 ))}
               </ul>
+              {extraRegs.length > 0 && (
+                <>
+                  <p className="mt-4 text-xs font-semibold text-brand-ink">
+                    Outros blocos encontrados neste arquivo
+                  </p>
+                  <ul className="mt-2 max-h-36 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
+                    {extraRegs.map((key) => (
+                      <li key={key} className="flex items-start gap-2">
+                        <input
+                          id={`sped-sheet-extra-${key}`}
+                          type="checkbox"
+                          checked={selectedSheets.has(key)}
+                          onChange={() => toggleSheet(key)}
+                          className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
+                        />
+                        <label
+                          htmlFor={`sped-sheet-extra-${key}`}
+                          className="cursor-pointer leading-snug text-brand-ink"
+                        >
+                          {key}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {inspectNotice && (
+                <p className="mt-3 text-xs text-sky-900">{inspectNotice}</p>
+              )}
+              {inspectErr && (
+                <p className="mt-3 text-xs text-amber-800">
+                  Não foi possível listar blocos extra neste arquivo ({inspectErr}). Só as abas principais
+                  estão disponíveis.
+                </p>
+              )}
               {selectedSheets.size === 0 && (
                 <p className="mt-2 text-xs font-medium text-rose-600">
                   Marque ao menos uma aba para gerar a planilha.
@@ -271,7 +365,7 @@ export default function SpedHomePage() {
             </div>
             <motion.button
               type="button"
-              disabled={busy || selectedSheets.size === 0}
+              disabled={busy || inspecting || presentRegs === null || selectedSheets.size === 0}
               onClick={submit}
               className={`mt-4 ${toolPrimaryButtonClass}`}
               whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(42 79 96 / 0.2)" }}

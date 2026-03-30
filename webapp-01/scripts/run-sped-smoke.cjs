@@ -1,6 +1,6 @@
 /**
  * Smoke: gera XLSX a partir de tests/fixtures/sped_minimo.txt via webapp-02/sped_engine/cli.py
- * Valida: exportação completa (12 abas) e subconjunto --sheets (2 abas).
+ * Valida: export completo (12 abas), --sheets C100 e --sheets 0000 (layout genérico).
  */
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -12,6 +12,7 @@ const engine = path.resolve(root, "..", "webapp-02", "sped_engine");
 const fixture = path.join(root, "tests", "fixtures", "sped_minimo.txt");
 const outFull = path.join(os.tmpdir(), `sped-smoke-full-${Date.now()}.xlsx`);
 const outSub = path.join(os.tmpdir(), `sped-smoke-sub-${Date.now()}.xlsx`);
+const outGeneric = path.join(os.tmpdir(), `sped-smoke-0000-${Date.now()}.xlsx`);
 
 if (!fs.existsSync(engine)) {
   console.error("Pasta do motor SPED não encontrada:", engine);
@@ -103,6 +104,19 @@ if (namesSub.join(",") !== "RELATORIO,C100") {
   process.exit(1);
 }
 
-console.log("OK: export completo + --sheets C100");
+const r3 = runCli(outGeneric, ["--sheets", "0000"]);
+if (r3.status !== 0) {
+  console.error("cli.py (--sheets 0000, layout genérico) falhou:", r3.stderr || r3.stdout || r3.error);
+  process.exit(r3.status ?? 1);
+}
+const namesGen = listSheetNames(outGeneric);
+if (namesGen.join(",") !== "RELATORIO,0000") {
+  console.error("Abas esperadas (REG genérico 0000): RELATORIO,0000");
+  console.error("Abas obtidas:", namesGen.join(","));
+  process.exit(1);
+}
+
+console.log("OK: export completo + --sheets C100 + --sheets 0000 (genérico)");
 fs.unlinkSync(outFull);
 fs.unlinkSync(outSub);
+fs.unlinkSync(outGeneric);
