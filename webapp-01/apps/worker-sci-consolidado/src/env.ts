@@ -4,8 +4,9 @@ import { z } from "zod";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Código Python do Consolidado SCI: pasta irmã webapp-04 (mesmo nível que webapp-01). */
 function defaultPythonDir(): string {
-  return path.resolve(__dirname, "../python");
+  return path.resolve(__dirname, "../../../../webapp-04");
 }
 
 const EnvSchema = z.object({

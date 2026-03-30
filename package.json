@@ -1,7 +1,7 @@
 {
   "name": "webapp-desktop-root",
   "private": true,
-  "description": "Atalho: o monorepo (NFe, SPED, SPED merge, Consolidado SCI) fica em webapp-01. npm run dev na raiz delega para webapp-01.",
+  "description": "Atalho: monorepo em webapp-01; Python irmão em webapp-02, webapp-03, webapp-04. npm run dev na raiz delega para webapp-01.",
   "scripts": {
     "dev": "npm run dev --prefix webapp-01",
     "dev:stack": "npm run dev:stack --prefix webapp-01",

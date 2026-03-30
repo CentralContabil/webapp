@@ -7,14 +7,14 @@ const TOOL_ICONS: Record<string, typeof FileSpreadsheet> = {
   nfe: FileSpreadsheet,
   sped: ScrollText,
   "webapp-03": Combine,
-  "sci-consolidado": Table2,
+  "webapp-04": Table2,
 };
 
 const TOOL_ACCENT: Record<string, string> = {
   nfe: "from-[#447f98] via-[#4f8aa3] to-[#629bb5]",
   sped: "from-[#629bb5] via-[#5599b0] to-[#447f98]",
   "webapp-03": "from-[#3d7390] to-[#629bb5]",
-  "sci-consolidado": "from-[#4a7f95] via-[#5a8fab] to-[#447f98]",
+  "webapp-04": "from-[#4a7f95] via-[#5a8fab] to-[#447f98]",
 };
 
 export default function ToolsHubPage() {

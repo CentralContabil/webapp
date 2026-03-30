@@ -53,7 +53,7 @@ if not errorlevel 1 goto after_pywarn
 where python >nul 2>&1
 if not errorlevel 1 goto after_pywarn
 echo.
-echo [Aviso] Python nao encontrado no PATH. SPED e XLSX-^>SPED precisam de py/python + pip (webapp-02 e webapp-03).
+echo [Aviso] Python nao encontrado no PATH. SPED, XLSX-^>SPED e SCI precisam de py/python + pip (webapp-02, webapp-03, webapp-04).
 echo.
 :after_pywarn
 

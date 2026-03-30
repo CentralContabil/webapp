@@ -10,8 +10,9 @@ Este repositório concentra a **plataforma** e as **ferramentas** atuais e futur
 - **NFe XML → XLSX:** `/tools/nfe` (rotas legadas de API: `POST /api/v1/jobs` inalteradas).
 - **SPED → XLSX:** `/tools/sped`; motor Python em **[webapp-02](../webapp-02)/sped_engine** (worker `worker-sped-bridge`). A planilha exportada inclui a coluna **`_LINHA`** (número da linha no `.txt` original).
 - **XLSX → SPED (webapp-03):** `/tools/sped-merge`; mescla o XLSX editado de volta no `.txt` preservando linhas que não estão na planilha. Requer o XLSX gerado pela exportação atual (**com `_LINHA`**). Código Python em **[webapp-03](../webapp-03)**; worker Node `worker-sped-merge-bridge`.
+- **Consolidado SCI (webapp-04):** `/tools/sci-consolidado`; exportação SCI → **ProdutosSCI.xlsx**. Código Python em **[webapp-04](../webapp-04)**; worker Node `worker-sci-consolidado`.
 
-**Pastas irmãs no disco:** `webapp-01`, `webapp-02` e `webapp-03` no mesmo diretório pai (caminhos padrão dos workers e do merge).
+**Pastas irmãs no disco:** `webapp-01`, `webapp-02`, `webapp-03` e `webapp-04` no mesmo diretório pai (caminhos padrão dos workers).
 
 ---
 
@@ -23,7 +24,7 @@ Monorepo **Node.js + TypeScript** para XML NFe → XLSX: API **Fastify**, fila *
 
 1. **Redis** em `127.0.0.1:6379` (ex.: `npm run redis:up` com Docker ligado).
 2. Na pasta `webapp-01`: `npm install`
-3. **`npm run dev`** — compila API/workers e sobe **API + worker NFe + worker SPED + worker SPED merge + Vite** (`dev:all`). Para SPED e XLSX→SPED é necessário **Python** com dependências do `webapp-02/sped_engine` e `webapp-03` (`pip install -r requirements.txt` em cada pasta, ou o mesmo venv).
+3. **`npm run dev`** — compila API/workers e sobe **API + workers + Vite** (`dev:all`). Para SPED, XLSX→SPED e Consolidado SCI: **Python** com `pip install -r requirements.txt` em `webapp-02/sped_engine`, `webapp-03` e **`webapp-04`** (ou o mesmo venv).
 
 **Só interface:** `npm run dev:fe` sobe apenas o Vite; aí é preciso **`npm run dev:backend`** (ou API na porta 8000) em outro terminal, senão o proxy dá `ECONNREFUSED`.
 

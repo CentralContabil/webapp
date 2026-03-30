@@ -140,7 +140,7 @@ app.get(`${API_PREFIX}/tools`, async () => ({
       available: true,
     },
     {
-      id: "sci-consolidado",
+      id: "webapp-04",
       title: "Consolidado SCI",
       subtitle: "Planilha SCI → Excel",
       description:

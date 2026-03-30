@@ -21,7 +21,7 @@
     "dev:backend": "npm run build -w @webapp/contracts -w @webapp/nfe-core -w @webapp/excel-export -w @webapp/api -w @webapp/worker -w @webapp/worker-sped-bridge -w @webapp/worker-sped-merge-bridge -w @webapp/worker-sci-consolidado && concurrently -n api,worker,sped,spedmg,sci -c cyan,magenta,yellow,blue,white npm:dev:api:only npm:dev:worker:only npm:dev:worker-sped:only npm:dev:worker-sped-merge:only npm:dev:worker-sci:only",
     "build": "npm run build -w @webapp/contracts && npm run build -w @webapp/nfe-core && npm run build -w @webapp/excel-export && npm run build -w @webapp/api && npm run build -w @webapp/worker && npm run build -w @webapp/worker-sped-bridge && npm run build -w @webapp/worker-sped-merge-bridge && npm run build -w @webapp/worker-sci-consolidado && npm run build -w @webapp/frontend",
     "test": "npm run test -w @webapp/nfe-core --if-present",
-    "test:sci-py": "cd apps/worker-sci-consolidado/python && py -m pytest -q",
+    "test:sci-py": "cd ../webapp-04 && py -m pytest -q",
     "test:sped-smoke": "node scripts/run-sped-smoke.cjs",
     "lint": "npm run lint -w @webapp/frontend"
   },
