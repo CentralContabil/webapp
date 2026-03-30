@@ -31,6 +31,7 @@ import {
 } from "./queue.js";
 import { signDownloadToken, verifyDownloadToken } from "./tokens.js";
 import { buildSpedXlsxFileName, extractSpedRazaoFromBuffer } from "./sped-filename.js";
+import { loadSpedCabecalhosMeta } from "./sped-cabecalhos.js";
 
 const SPED_CORE = new Set<string>(SPED_EXPORT_SHEET_KEYS);
 
@@ -415,6 +416,11 @@ app.post(`${API_PREFIX}/tools/sped/inspect`, async (req, reply) => {
     a.localeCompare(b, "en", { numeric: true })
   );
   return { presentRegs };
+});
+
+app.get(`${API_PREFIX}/tools/sped/reg-meta`, async () => {
+  const { descriptions, blockByReg } = loadSpedCabecalhosMeta();
+  return { descriptions, blockByReg };
 });
 
 app.post(`${API_PREFIX}/tools/sped/jobs`, async (req, reply) => {

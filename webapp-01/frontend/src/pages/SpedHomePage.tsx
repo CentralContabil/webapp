@@ -8,6 +8,7 @@ import {
 } from "@webapp/contracts";
 import {
   createSpedJob,
+  fetchSpedRegMeta,
   getSpedJob,
   inspectSpedFile,
   type JobResponse,
@@ -48,6 +49,22 @@ export default function SpedHomePage() {
   const [inspectErr, setInspectErr] = useState<string | null>(null);
   /** Aviso quando a API não tem /inspect e usámos leitura local (ex.: 404). */
   const [inspectNotice, setInspectNotice] = useState<string | null>(null);
+  /** Descrições do guia `cabecalhos_sped.txt` (API GET /tools/sped/reg-meta). */
+  const [spedRegMeta, setSpedRegMeta] = useState<{
+    descriptions: Record<string, string>;
+    blockByReg: Record<string, string>;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const m = await fetchSpedRegMeta();
+      if (!cancelled && m) setSpedRegMeta(m);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onDrop = useCallback((accepted: File[]) => {
     const f = accepted.slice(0, 1)[0];
@@ -328,23 +345,32 @@ export default function SpedHomePage() {
                     Outros blocos encontrados neste arquivo
                   </p>
                   <ul className="mt-2 max-h-36 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
-                    {extraRegs.map((key) => (
-                      <li key={key} className="flex items-start gap-2">
-                        <input
-                          id={`sped-sheet-extra-${key}`}
-                          type="checkbox"
-                          checked={selectedSheets.has(key)}
-                          onChange={() => toggleSheet(key)}
-                          className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
-                        />
-                        <label
-                          htmlFor={`sped-sheet-extra-${key}`}
-                          className="cursor-pointer leading-snug text-brand-ink"
-                        >
-                          {key}
-                        </label>
-                      </li>
-                    ))}
+                    {extraRegs.map((key) => {
+                      const title = spedRegMeta?.descriptions[key]?.trim();
+                      const label =
+                        title && title.length > 0
+                          ? `${key} — ${title}`
+                          : spedRegMeta != null
+                            ? `${key} — Sem descrição no guia`
+                            : key;
+                      return (
+                        <li key={key} className="flex items-start gap-2">
+                          <input
+                            id={`sped-sheet-extra-${key}`}
+                            type="checkbox"
+                            checked={selectedSheets.has(key)}
+                            onChange={() => toggleSheet(key)}
+                            className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
+                          />
+                          <label
+                            htmlFor={`sped-sheet-extra-${key}`}
+                            className="cursor-pointer leading-snug text-brand-ink"
+                          >
+                            {label}
+                          </label>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               )}

@@ -1,4 +1,8 @@
-import { SPED_EXPORT_SHEET_KEYS, SPED_REG_CODE_RE } from "@webapp/contracts";
+import {
+  SPED_EXPORT_SHEET_KEYS,
+  SPED_REG_CODE_RE,
+  type SpedRegMetaResponse,
+} from "@webapp/contracts";
 
 /** Limite ao ler o .txt no navegador quando a API não tem POST /tools/sped/inspect (404). */
 const SPED_INSPECT_LOCAL_MAX_BYTES = 80 * 1024 * 1024;
@@ -294,6 +298,17 @@ export async function inspectSpedFile(file: File): Promise<SpedInspectResult> {
 
   const err = await res.json().catch(() => ({}));
   throw new Error((err as { error?: string }).error ?? res.statusText);
+}
+
+/** Títulos e blocos do guia interno (cabeçalhos SPED); usado na UI para descrever REGs extras. */
+export async function fetchSpedRegMeta(): Promise<SpedRegMetaResponse | null> {
+  try {
+    const res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped/reg-meta`);
+    if (!res.ok) return null;
+    return (await res.json()) as SpedRegMetaResponse;
+  } catch {
+    return null;
+  }
 }
 
 export async function createSpedJob(

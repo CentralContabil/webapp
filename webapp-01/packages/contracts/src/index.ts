@@ -42,7 +42,6 @@ export const SPED_EXPORT_SHEET_KEYS = [
 
 export type SpedExportSheetKey = (typeof SPED_EXPORT_SHEET_KEYS)[number];
 
-/** Rótulos para seleção na UI (uma aba por registro). */
 /** Código REG SPED (4 caracteres alfanuméricos). */
 export const SPED_REG_CODE_RE = /^[0-9A-Z]{4}$/;
 
@@ -57,17 +56,26 @@ export const SpedInspectResponseSchema = z.object({
 
 export type SpedInspectResponse = z.infer<typeof SpedInspectResponseSchema>;
 
+/** Metadados do guia `cabecalhos_sped.txt` (título curto e bloco SPED por REG). */
+export const SpedRegMetaResponseSchema = z.object({
+  descriptions: z.record(z.string()),
+  blockByReg: z.record(z.string()),
+});
+
+export type SpedRegMetaResponse = z.infer<typeof SpedRegMetaResponseSchema>;
+
+/** Rótulos alinhados ao guia `cabecalhos_sped.txt` (EFD ICMS/IPI / referência interna). */
 export const SPED_EXPORT_SHEET_LABELS: Record<SpedExportSheetKey, string> = {
   "0150": "0150 — Participantes",
   "0200": "0200 — Itens (produtos/serviços)",
-  C100: "C100 — Documentos (NF-e modelo 55/65)",
-  C170: "C170 — Itens do documento",
-  C190: "C190 — Registro analítico (documento)",
-  C500: "C500 — Nota energia/gás/água",
+  C100: "C100 — Documento fiscal (NF-e 55/65 e equivalentes)",
+  C170: "C170 — Itens do documento fiscal",
+  C190: "C190 — Registro analítico do documento",
+  C500: "C500 — Nota de energia, gás, água e comunicação",
   C590: "C590 — Registro analítico (C500)",
-  D100: "D100 — Documentos transporte (CT-e)",
-  D190: "D190 — Registro analítico (CT-e)",
-  D500: "D500 — Nota serviço comunicação",
+  D100: "D100 — Documento de transporte (CT-e e equivalentes)",
+  D190: "D190 — Registro analítico do CT-e",
+  D500: "D500 — Nota de serviço de comunicação e telecomunicação",
   D590: "D590 — Registro analítico (D500)",
 };
 

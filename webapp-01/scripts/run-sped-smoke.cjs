@@ -1,6 +1,6 @@
 /**
  * Smoke: gera XLSX a partir de tests/fixtures/sped_minimo.txt via webapp-02/sped_engine/cli.py
- * Valida: export completo (12 abas), --sheets C100 e --sheets 0000 (layout genérico).
+ * Valida: export completo (12 abas), --sheets C100 e --sheets 0000 (cabeçalhos do guia).
  */
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -116,7 +116,7 @@ if (namesGen.join(",") !== "RELATORIO,0000") {
   process.exit(1);
 }
 
-console.log("OK: export completo + --sheets C100 + --sheets 0000 (genérico)");
+console.log("OK: export completo + --sheets C100 + --sheets 0000 (guia cabeçalhos)");
 fs.unlinkSync(outFull);
 fs.unlinkSync(outSub);
 fs.unlinkSync(outGeneric);
