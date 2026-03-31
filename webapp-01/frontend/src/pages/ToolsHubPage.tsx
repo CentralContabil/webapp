@@ -1,4 +1,4 @@
-import { ArrowRight, Combine, FileSpreadsheet, ScrollText, Table2 } from "lucide-react";
+import { ArrowRight, CircleHelp, Combine, FileSpreadsheet, ScrollText, Table2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchToolsManifest, type ToolManifestEntry } from "../api.js";
@@ -91,20 +91,37 @@ function ToolCard({ tool }: { tool: ToolManifestEntry }) {
             <h2 className="font-display text-[15px] font-bold leading-tight tracking-tight text-brand-inkStrong sm:text-base">
               {tool.title}
             </h2>
-            {!tool.available && (
-              <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-                Breve
+            <div className="flex shrink-0 items-start gap-1.5">
+              <span
+                className="group/help relative inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#bddae5] bg-[#eef7fb] text-[#2d6a82] shadow-[inset_0_1px_0_rgb(255_255_255/0.55)] transition-all duration-200 hover:-translate-y-px hover:border-[#91c2d4] hover:bg-[#def0f8] hover:shadow-[0_5px_12px_-8px_rgb(37_87_109/0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#447f98]/55"
+                aria-label={`Descrição da ferramenta ${tool.title}`}
+                title={tool.description}
+                tabIndex={0}
+              >
+                <CircleHelp className="h-3.5 w-3.5" strokeWidth={2.15} />
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-60 rounded-xl border border-[#a9ccda] bg-white/98 px-3 py-2.5 text-left font-sans text-[11px] font-medium leading-snug text-[#244958] opacity-0 shadow-[0_14px_34px_-14px_rgb(37_87_109/0.55)] ring-1 ring-white/70 backdrop-blur-[1px] transition-all duration-150 group-hover/help:-translate-y-0.5 group-hover/help:opacity-100 group-focus-visible/help:-translate-y-0.5 group-focus-visible/help:opacity-100"
+                >
+                  {tool.description}
+                  <span
+                    aria-hidden
+                    className="absolute right-2 top-full h-2.5 w-2.5 -translate-y-[5px] rotate-45 border-b border-r border-[#a9ccda] bg-white"
+                  />
+                </span>
               </span>
-            )}
+              {!tool.available && (
+                <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  Breve
+                </span>
+              )}
+            </div>
           </div>
           <p className="mt-px text-[9px] font-bold uppercase tracking-[0.12em] text-[#347891] sm:mt-0.5 sm:text-[10px] sm:tracking-[0.14em]">
             {tool.subtitle}
           </p>
         </div>
       </div>
-      <p className="relative min-h-0 flex-1 font-sans text-[12px] leading-[1.35] text-[#2a4f60] selection:bg-[#cfe8f4] sm:text-[13px] sm:leading-snug">
-        {tool.description}
-      </p>
       {tool.available && (
         <span className="relative mt-auto flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#2d6a82] transition-all duration-200 group-hover:gap-1.5 group-hover:text-[#447f98] sm:text-[13px]">
           Abrir ferramenta
@@ -115,7 +132,7 @@ function ToolCard({ tool }: { tool: ToolManifestEntry }) {
   );
 
   const cardBase =
-    "group relative flex h-full min-h-[168px] w-full min-w-0 flex-col overflow-hidden rounded-xl p-3 outline-none sm:min-h-[178px] sm:rounded-2xl sm:p-3.5";
+    "group relative flex h-full min-h-[168px] w-full min-w-0 flex-col overflow-visible rounded-xl p-3 outline-none sm:min-h-[178px] sm:rounded-2xl sm:p-3.5";
 
   const cardAvailable = `${cardBase} border border-[#dadee1]/90 bg-white shadow-[0_2px_10px_-2px_rgb(68_127_152/0.12)] transition-[transform,box-shadow,border-color] duration-200 [-webkit-tap-highlight-color:transparent] hover:-translate-y-px hover:border-[#b9d8e1] hover:shadow-[0_8px_22px_-6px_rgb(68_127_152/0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#447f98]/55`;
 
