@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -90,6 +91,84 @@ def test_merge_aplica_reg_generico_fora_dos_headers(tmp_path: Path) -> None:
 
     merged = out.read_text(encoding="utf-8", errors="replace")
     assert "|Z999|EDITADO|B|" in merged
+
+
+def test_merge_generico_usa_template_original_para_data_e_numero(tmp_path: Path) -> None:
+    sped = tmp_path / "orig_template.txt"
+    xlsx = tmp_path / "edit_template.xlsx"
+    out = tmp_path / "out_template.txt"
+    sped.write_text("|0000|017|0|\n|Z999|01022026|16664,42|ABC|\n", encoding="utf-8")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Z999"
+    ws.append(["_LINHA", "COL_01", "COL_02", "COL_03", "COL_04"])
+    ws.append([2, "Z999", "2026-02-02 00:00:00", "16.664,42", "ABC"])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(sped, xlsx, out)
+
+    merged = out.read_text(encoding="utf-8", errors="replace")
+    assert "|Z999|02022026|16664,42|ABC|" in merged
+    assert "2026-02-02" not in merged
+    assert "16664.42" not in merged
+
+
+def test_merge_preserva_quantidade_de_campos_por_linha_no_generico(tmp_path: Path) -> None:
+    sped = tmp_path / "orig_fields.txt"
+    xlsx = tmp_path / "edit_fields.xlsx"
+    out = tmp_path / "out_fields.txt"
+    sped.write_text(
+        "|K010||\n"
+        "|1010|N|N|N|N|N|N|N|N|N|N|N|N|N|\n",
+        encoding="utf-8",
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "K010"
+    ws.append(["_LINHA", "COL_01", "COL_02", "COL_03"])
+    ws.append([1, "K010", "", ""])
+    wb2 = wb.create_sheet("1010")
+    wb2.append(
+        ["_LINHA", "COL_01", "COL_02", "COL_03", "COL_04", "COL_05", "COL_06", "COL_07", "COL_08", "COL_09", "COL_10", "COL_11", "COL_12", "COL_13", "COL_14", "COL_15", "COL_16"]
+    )
+    wb2.append([2, "1010", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "", ""])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(sped, xlsx, out)
+
+    lines = out.read_text(encoding="utf-8", errors="replace").splitlines()
+    k010_inner = lines[0].split("|")[1:-1]
+    r1010_inner = lines[1].split("|")[1:-1]
+    assert len(k010_inner) == 2
+    assert len(r1010_inner) == 14
+
+
+def test_merge_normaliza_data_e_valor_no_c100(tmp_path: Path) -> None:
+    sped = tmp_path / "orig_c100.txt"
+    xlsx = tmp_path / "edit_c100.xlsx"
+    out = tmp_path / "out_c100.txt"
+    sped.write_text(
+        "|0000|017|0|\n"
+        "|C100|1|0|PART|55|00|1|1|CHAVE|01022026|01022026|100|1|0|0|100|1|0|0|0|100|18|0|0|0|0|0|0|0|\n",
+        encoding="utf-8",
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "C100"
+    ws.append(["_LINHA", "REG", "DT_DOC", "DT_E_S", "VL_DOC", "VL_MERC"])
+    ws.append([2, "C100", datetime(2026, 2, 2, 0, 0, 0), "2026-02-02 00:00:00", "16.664,42", "16.556,80"])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(sped, xlsx, out)
+
+    merged = out.read_text(encoding="utf-8", errors="replace")
+    assert "|02022026|02022026|16664,42|" in merged
+    assert "2026-02-02" not in merged
+    assert "16.664,42" not in merged
+    assert "16664.42" not in merged
 
 
 def test_inner_payload_c170_skips_injected() -> None:

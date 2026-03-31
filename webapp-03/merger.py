@@ -15,7 +15,12 @@ if _SPED_ENGINE.is_dir():
 from cabecalhos_sped import merge_headers  # noqa: E402
 from config import HEADERS  # noqa: E402
 
-from line_builders import append_extras, build_sped_line, cell_str, inner_payload_for_register
+from line_builders import (
+    append_extras,
+    build_sped_line,
+    inner_payload_for_register_with_template,
+    normalize_sped_field,
+)
 
 MERGE_HEADERS = merge_headers(HEADERS)
 REG_SHEET_RE = re.compile(r"^[0-9A-Z]{4}$")
@@ -102,13 +107,23 @@ def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) ->
                 raise ValueError(
                     f"Aba '{sheet}', _LINHA={n}: registro no SPED é {reg_file!r}, esperado {sheet!r}."
                 )
+            orig_inner = orig.rstrip("\r\n").split("|")[1:-1]
 
             row_dict = {c: row[c] for c in cols}
             if headers_rec is not None:
-                inner = inner_payload_for_register(sheet, row_dict, headers_rec)
+                inner = inner_payload_for_register_with_template(sheet, row_dict, headers_rec, orig_inner)
             else:
-                inner = [cell_str(row_dict.get(c, "")) for c in col_keys]
-            inner = append_extras(inner, row_dict, cols)
+                inner = []
+                for i, c in enumerate(col_keys):
+                    template_value = orig_inner[i] if i < len(orig_inner) else None
+                    inner.append(normalize_sped_field(c, row_dict.get(c, ""), template_value))
+            inner = append_extras(inner, row_dict, cols, template_inner=orig_inner)
+            # Mantém a cardinalidade exata de campos da linha original para evitar
+            # rejeições no PVA por "número de campos diferente do leiaute".
+            if len(inner) < len(orig_inner):
+                inner.extend([""] * (len(orig_inner) - len(inner)))
+            elif len(inner) > len(orig_inner):
+                inner = inner[: len(orig_inner)]
             lines[n - 1] = build_sped_line(inner)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
