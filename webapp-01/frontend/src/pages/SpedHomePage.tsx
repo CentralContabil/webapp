@@ -80,6 +80,12 @@ export default function SpedHomePage() {
       try {
         const { presentRegs: regs, localFallback } = await inspectSpedFile(f);
         setPresentRegs(regs);
+        // Padrão: todas as opções marcadas (core + extras detectados no arquivo)
+        setSelectedSheets(() => {
+          const all = new Set<string>(SPED_EXPORT_SHEET_KEYS);
+          for (const r of regs) all.add(r);
+          return all;
+        });
         if (localFallback) {
           setInspectNotice(
             "O servidor ainda não expõe a rota de inspeção (ou respondeu 404). " +
@@ -130,6 +136,7 @@ export default function SpedHomePage() {
   };
 
   const extraRegs = (presentRegs ?? []).filter((r) => !SPED_CORE_LIST.includes(r));
+  const listedRegs = [...SPED_EXPORT_SHEET_KEYS, ...extraRegs];
 
   const submit = async () => {
     const f = files[0];
@@ -305,9 +312,7 @@ export default function SpedHomePage() {
                   type="button"
                   className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
                   onClick={() => {
-                    const n = new Set(SPED_EXPORT_SHEET_KEYS);
-                    for (const r of extraRegs) n.add(r);
-                    setSelectedSheets(n);
+                    setSelectedSheets(new Set(listedRegs));
                   }}
                 >
                   Marcar todos
@@ -320,60 +325,36 @@ export default function SpedHomePage() {
                   Desmarcar todos
                 </button>
               </div>
-              <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
-                {SPED_EXPORT_SHEET_KEYS.map((key) => (
-                  <li key={key} className="flex items-start gap-2">
-                    <input
-                      id={`sped-sheet-${key}`}
-                      type="checkbox"
-                      checked={selectedSheets.has(key)}
-                      onChange={() => toggleSheet(key)}
-                      className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
-                    />
-                    <label
-                      htmlFor={`sped-sheet-${key}`}
-                      className="cursor-pointer leading-snug text-brand-ink"
-                    >
-                      {SPED_EXPORT_SHEET_LABELS[key as keyof typeof SPED_EXPORT_SHEET_LABELS]}
-                    </label>
-                  </li>
-                ))}
+              <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
+                {listedRegs.map((key) => {
+                  const isCore = SPED_CORE_LIST.includes(key);
+                  const title = spedRegMeta?.descriptions[key]?.trim();
+                  const label = isCore
+                    ? SPED_EXPORT_SHEET_LABELS[key as keyof typeof SPED_EXPORT_SHEET_LABELS]
+                    : title && title.length > 0
+                      ? `${key} — ${title}`
+                      : spedRegMeta != null
+                        ? `${key} — Sem descrição no guia`
+                        : key;
+                  return (
+                    <li key={key} className="flex items-start gap-2">
+                      <input
+                        id={`sped-sheet-${key}`}
+                        type="checkbox"
+                        checked={selectedSheets.has(key)}
+                        onChange={() => toggleSheet(key)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
+                      />
+                      <label
+                        htmlFor={`sped-sheet-${key}`}
+                        className="cursor-pointer leading-snug text-brand-ink"
+                      >
+                        {label}
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
-              {extraRegs.length > 0 && (
-                <>
-                  <p className="mt-4 text-xs font-semibold text-brand-ink">
-                    Outros blocos encontrados neste arquivo
-                  </p>
-                  <ul className="mt-2 max-h-36 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
-                    {extraRegs.map((key) => {
-                      const title = spedRegMeta?.descriptions[key]?.trim();
-                      const label =
-                        title && title.length > 0
-                          ? `${key} — ${title}`
-                          : spedRegMeta != null
-                            ? `${key} — Sem descrição no guia`
-                            : key;
-                      return (
-                        <li key={key} className="flex items-start gap-2">
-                          <input
-                            id={`sped-sheet-extra-${key}`}
-                            type="checkbox"
-                            checked={selectedSheets.has(key)}
-                            onChange={() => toggleSheet(key)}
-                            className="mt-1 h-4 w-4 shrink-0 rounded border-brand-line text-accent focus:ring-accent"
-                          />
-                          <label
-                            htmlFor={`sped-sheet-extra-${key}`}
-                            className="cursor-pointer leading-snug text-brand-ink"
-                          >
-                            {label}
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </>
-              )}
               {inspectNotice && (
                 <p className="mt-3 text-xs text-sky-900">{inspectNotice}</p>
               )}

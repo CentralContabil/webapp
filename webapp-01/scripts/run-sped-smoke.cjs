@@ -1,6 +1,6 @@
 /**
  * Smoke: gera XLSX a partir de tests/fixtures/sped_minimo.txt via webapp-02/sped_engine/cli.py
- * Valida: export completo (12 abas), --sheets C100 e --sheets 0000 (cabeçalhos do guia).
+ * Valida: export completo (11 abas), --sheets C100 e --sheets 0000 (cabeçalhos do guia).
  */
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -56,7 +56,6 @@ function listSheetNames(xlsxPath) {
 }
 
 const expectedFull = [
-  "RELATORIO",
   "0150",
   "0200",
   "C100",
@@ -98,8 +97,8 @@ if (r2.status !== 0) {
   process.exit(r2.status ?? 1);
 }
 const namesSub = listSheetNames(outSub);
-if (namesSub.join(",") !== "RELATORIO,C100") {
-  console.error('Abas esperadas (subconjunto): RELATORIO,C100');
+if (namesSub.join(",") !== "C100") {
+  console.error('Abas esperadas (subconjunto): C100');
   console.error("Abas obtidas:", namesSub.join(","));
   process.exit(1);
 }
@@ -110,8 +109,8 @@ if (r3.status !== 0) {
   process.exit(r3.status ?? 1);
 }
 const namesGen = listSheetNames(outGeneric);
-if (namesGen.join(",") !== "RELATORIO,0000") {
-  console.error("Abas esperadas (REG genérico 0000): RELATORIO,0000");
+if (namesGen.join(",") !== "0000") {
+  console.error("Abas esperadas (REG genérico 0000): 0000");
   console.error("Abas obtidas:", namesGen.join(","));
   process.exit(1);
 }
