@@ -5,15 +5,36 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import re
 
 _ROOT = Path(__file__).resolve().parent
 _SPED_ENGINE = _ROOT.parent / "webapp-02" / "sped_engine"
 if _SPED_ENGINE.is_dir():
     sys.path.insert(0, str(_SPED_ENGINE))
 
-from config import HEADERS, SHEET_ORDER  # noqa: E402
+from cabecalhos_sped import merge_headers  # noqa: E402
+from config import HEADERS  # noqa: E402
 
-from line_builders import append_extras, build_sped_line, inner_payload_for_register
+from line_builders import append_extras, build_sped_line, cell_str, inner_payload_for_register
+
+MERGE_HEADERS = merge_headers(HEADERS)
+REG_SHEET_RE = re.compile(r"^[0-9A-Z]{4}$")
+
+
+def _is_reg_sheet(name: str) -> bool:
+    return bool(REG_SHEET_RE.fullmatch(name.strip().upper()))
+
+
+def _sorted_col_keys(columns: list[str]) -> list[str]:
+    cols: list[tuple[int, str]] = []
+    for c in columns:
+        if not isinstance(c, str) or not c.startswith("COL_"):
+            continue
+        tail = c[4:]
+        if tail.isdigit():
+            cols.append((int(tail), c))
+    cols.sort(key=lambda x: x[0])
+    return [c for _, c in cols]
 
 
 def _read_text(path: Path) -> str:
@@ -42,11 +63,11 @@ def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) ->
 
     xl = pd.ExcelFile(xlsx_path, engine="openpyxl")
 
-    for sheet in SHEET_ORDER:
-        if sheet not in xl.sheet_names:
-            raise ValueError(f"Aba obrigatória ausente no XLSX: {sheet}")
-        if sheet not in HEADERS:
-            continue
+    editable_sheets = [sheet for sheet in xl.sheet_names if _is_reg_sheet(sheet)]
+    if not editable_sheets:
+        raise ValueError("Nenhuma aba de registro SPED encontrada no XLSX.")
+
+    for sheet in editable_sheets:
 
         df = pd.read_excel(xl, sheet_name=sheet, dtype=object)
         if "_LINHA" not in df.columns:
@@ -54,8 +75,13 @@ def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) ->
         if df.empty:
             continue
 
-        headers_rec = HEADERS[sheet]
+        headers_rec = MERGE_HEADERS.get(sheet)
         cols = list(df.columns)
+        col_keys = _sorted_col_keys(cols)
+        if headers_rec is None and not col_keys:
+            raise ValueError(
+                f"Aba '{sheet}': sem mapeamento conhecido e sem colunas COL_XX para reconstruir a linha."
+            )
 
         for idx in range(len(df)):
             row = df.iloc[idx]
@@ -78,7 +104,10 @@ def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) ->
                 )
 
             row_dict = {c: row[c] for c in cols}
-            inner = inner_payload_for_register(sheet, row_dict, headers_rec)
+            if headers_rec is not None:
+                inner = inner_payload_for_register(sheet, row_dict, headers_rec)
+            else:
+                inner = [cell_str(row_dict.get(c, "")) for c in col_keys]
             inner = append_extras(inner, row_dict, cols)
             lines[n - 1] = build_sped_line(inner)
 
