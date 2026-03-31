@@ -8,6 +8,60 @@ import {
   text,
 } from "./dom-utils.js";
 
+const IND_PRES_LABEL: Record<string, string> = {
+  "0": "Não se aplica",
+  "1": "Operação presencial",
+  "2": "Operação não presencial, pela Internet",
+  "3": "Operação não presencial, Teleatendimento",
+  "4": "NFC-e em operação com entrega a domicílio",
+  "5": "Operação presencial, fora do estabelecimento",
+  "9": "Operação não presencial, outros",
+};
+
+const FIN_NFE_LABEL: Record<string, string> = {
+  "1": "NF-e normal",
+  "2": "NF-e complementar",
+  "3": "NF-e de ajuste",
+  "4": "NF-e de devolução/retorno",
+};
+
+function codeWithLabel(code: string, labels: Record<string, string>): string {
+  const c = code.trim();
+  if (!c) return "";
+  const label = labels[c];
+  return label ? `${c} - ${label}` : `${c} - Código não mapeado`;
+}
+
+function formatDhEmiBr(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  // ISO comum da NF-e: 2025-09-22T12:42:01-03:00
+  const mIso = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2}))?/);
+  if (mIso) {
+    const yyyy = mIso[1]!;
+    const mm = mIso[2]!;
+    const dd = mIso[3]!;
+    const hh = mIso[4];
+    const mi = mIso[5];
+    const ss = mIso[6];
+    if (hh && mi && ss) return `${dd}/${mm}/${yyyy} - ${hh}:${mi}:${ss}`;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  // Quando já vier sem timezone, só normaliza o separador de data/hora.
+  const mBr = t.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T-]+(\d{2})[:/](\d{2})[:/](\d{2}))?$/);
+  if (mBr) {
+    const dd = mBr[1]!;
+    const mm = mBr[2]!;
+    const yyyy = mBr[3]!;
+    const hh = mBr[4];
+    const mi = mBr[5];
+    const ss = mBr[6];
+    if (hh && mi && ss) return `${dd}/${mm}/${yyyy} - ${hh}:${mi}:${ss}`;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return t;
+}
+
 function rowWithKeys(partial: Partial<NfeRow>): NfeRow {
   const r = emptyRow();
   for (const k of COLS) {
@@ -84,11 +138,17 @@ export function parseNfeXml(xml: string, fileName: string): NfeRow[] {
   const emit = infNFe ? findFirstLocal(infNFe, "emit") : null;
   const dest = infNFe ? findFirstLocal(infNFe, "dest") : null;
 
+  const indPresRaw = ide ? text(findFirstLocal(ide, "indPres")) : "";
+  const finNFeRaw = ide ? text(findFirstLocal(ide, "finNFe")) : "";
   const base: Partial<NfeRow> = {
+    indPres: codeWithLabel(indPresRaw, IND_PRES_LABEL),
+    indPres_raw: indPresRaw,
+    finNFe: codeWithLabel(finNFeRaw, FIN_NFE_LABEL),
+    finNFe_raw: finNFeRaw,
     chNFe: ch,
     nNF: ide ? text(findFirstLocal(ide, "nNF")) : "",
     dhEmi: ide
-      ? text(findFirstLocal(ide, "dhEmi")) || text(findFirstLocal(ide, "dEmi"))
+      ? formatDhEmiBr(text(findFirstLocal(ide, "dhEmi")) || text(findFirstLocal(ide, "dEmi")))
       : "",
     tpNF: ide ? text(findFirstLocal(ide, "tpNF")) : "",
     emit_CNPJ: emit ? digits(text(findFirstLocal(emit, "CNPJ"))) : "",
@@ -96,6 +156,11 @@ export function parseNfeXml(xml: string, fileName: string): NfeRow[] {
     dest_CNPJ: dest ? digits(text(findFirstLocal(dest, "CNPJ"))) : "",
     dest_xNome: dest ? text(findFirstLocal(dest, "xNome")) : "",
   };
+  const indIntermedRaw = ide ? text(findFirstLocal(ide, "indIntermed")) : "";
+  const alertaFiscal =
+    ["2", "9"].includes(indPresRaw) && indIntermedRaw === "1"
+      ? "⚠ Atenção: operação não presencial com intermediação (marketplace). Revise os dados do intermediador e a escrituração fiscal."
+      : "";
 
   const rows: NfeRow[] = [];
   const detList = infNFe ? findAllLocal(infNFe, "det") : [];
@@ -145,6 +210,7 @@ export function parseNfeXml(xml: string, fileName: string): NfeRow[] {
       vPIS: pisAny ? text(findFirstLocal(pisAny, "vPIS")) : "",
       pCOFINS: cofAny ? text(findFirstLocal(cofAny, "pCOFINS")) : "",
       vCOFINS: cofAny ? text(findFirstLocal(cofAny, "vCOFINS")) : "",
+      "Alerta Fiscal": alertaFiscal,
       Descrição: descricao,
     });
     rows.push(row);

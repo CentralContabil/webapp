@@ -8,6 +8,8 @@ const minimalNfe = `<?xml version="1.0" encoding="UTF-8"?>
       <nNF>1</nNF>
       <dhEmi>2024-01-15T10:00:00-03:00</dhEmi>
       <tpNF>1</tpNF>
+      <finNFe>1</finNFe>
+      <indPres>2</indPres>
     </ide>
     <emit>
       <CNPJ>12345678000199</CNPJ>
@@ -59,9 +61,21 @@ describe("parseNfeXml", () => {
     const rows = parseNfeXml(minimalNfe, "test.xml");
     expect(rows.length).toBe(1);
     expect(rows[0]!.nNF).toBe("1");
+    expect(rows[0]!.dhEmi).toBe("15/01/2024 - 10:00:00");
     expect(rows[0]!.cProd).toBe("001");
     expect(rows[0]!.xProd).toBe("Produto A");
     expect(rows[0]!.emit_CNPJ).toBe("12345678000199");
     expect(rows[0]!["CSOSN/CST"]).toBe("00");
+    expect(rows[0]!.indPres).toBe("2 - Operação não presencial, pela Internet");
+    expect(rows[0]!.indPres_raw).toBe("2");
+    expect(rows[0]!.finNFe).toBe("1 - NF-e normal");
+    expect(rows[0]!.finNFe_raw).toBe("1");
+    expect(rows[0]!["Alerta Fiscal"]).toBe("");
+  });
+
+  it("marca alerta para operação intermediada (marketplace)", () => {
+    const xml = minimalNfe.replace("</ide>", "<indIntermed>1</indIntermed></ide>");
+    const rows = parseNfeXml(xml, "marketplace.xml");
+    expect(rows[0]!["Alerta Fiscal"]).toContain("operação não presencial com intermediação");
   });
 });

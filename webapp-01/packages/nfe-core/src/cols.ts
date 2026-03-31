@@ -4,6 +4,10 @@ export const COLS = [
   "nNF",
   "dhEmi",
   "tpNF",
+  "indPres_raw",
+  "indPres",
+  "finNFe_raw",
+  "finNFe",
   "emit_CNPJ",
   "emit_xNome",
   "dest_CNPJ",
@@ -26,6 +30,7 @@ export const COLS = [
   "vPIS",
   "pCOFINS",
   "vCOFINS",
+  "Alerta Fiscal",
   "Descrição",
 ] as const;
 
@@ -38,6 +43,10 @@ export const HEADER_MAP: Record<ColKey, string> = {
   nNF: "Nº NF",
   dhEmi: "Emissão",
   tpNF: "tp OP",
+  indPres: "Presença do Comprador",
+  indPres_raw: "indPres (raw)",
+  finNFe: "Finalidade da NF-e",
+  finNFe_raw: "finNFe (raw)",
   emit_CNPJ: "CNPJ Emit.",
   emit_xNome: "Nome Emit.",
   dest_CNPJ: "CNPJ Dest.",
@@ -60,6 +69,7 @@ export const HEADER_MAP: Record<ColKey, string> = {
   vPIS: "Vlr PIS",
   pCOFINS: "Aliq COFINS",
   vCOFINS: "Vlr COFINS",
+  "Alerta Fiscal": "Alerta Fiscal",
   Descrição: "Descrição",
 };
 

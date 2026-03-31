@@ -8,6 +8,14 @@ const HEADER_FILL = {
 const HEADER_FONT = { color: { argb: "FFFFFFFF" }, bold: true };
 const ALIGN_CENTER = { vertical: "middle" as const, horizontal: "center" as const };
 const ALIGN_LEFT = { vertical: "middle" as const, horizontal: "left" as const };
+const LEFT_ALIGNED_HEADERS = new Set([
+  "Descrição",
+  "Descricao",
+  "Presença do Comprador",
+  "Presenca do Comprador",
+  "Finalidade da NF-e",
+  "Alerta Fiscal",
+]);
 
 /** Acima disso, evita O(linhas×colunas) em altura/alinhamento/largura (planilhas muito grandes). */
 export const LARGE_SHEET_MIN_ROWS = 2500;
@@ -93,11 +101,11 @@ function formatProductsSheetSmall(ws: Worksheet): void {
     }
   }
 
-  const descCol =
-    headerToCol.get("Descrição") ?? headerToCol.get("Descricao");
-  if (descCol) {
+  for (let c = 1; c <= maxCol; c++) {
+    const header = String(ws.getRow(1).getCell(c).value ?? "");
+    if (!LEFT_ALIGNED_HEADERS.has(header)) continue;
     for (let r = 2; r <= maxRow; r++) {
-      ws.getRow(r).getCell(descCol).alignment = ALIGN_LEFT;
+      ws.getRow(r).getCell(c).alignment = ALIGN_LEFT;
     }
   }
 
@@ -135,24 +143,19 @@ function formatProductsSheetLarge(ws: Worksheet): void {
     cell.alignment = ALIGN_CENTER;
   }
 
-  const descCol =
-    headerToCol.get("Descrição") ?? headerToCol.get("Descricao");
-
   for (let c = 1; c <= maxCol; c++) {
     const col = ws.getColumn(c);
-    col.alignment = descCol === c ? ALIGN_LEFT : ALIGN_CENTER;
     const h = String(ws.getRow(1).getCell(c).value ?? "");
+    col.alignment = LEFT_ALIGNED_HEADERS.has(h) ? ALIGN_LEFT : ALIGN_CENTER;
     let w = Math.min(72, Math.max(10, Math.ceil(h.length * 1.05) + 3));
     if (h.includes("Chave")) w = 50;
     else if (h.includes("Nome") || h.includes("Emit") || h.includes("Dest")) w = 38;
     else if (h.includes("Descrição") || h.includes("Descricao") || h === "Desc. Prod.")
       w = 44;
+    else if (h.includes("Presença") || h.includes("Presenca") || h.includes("Finalidade")) w = 34;
+    else if (h.includes("Alerta")) w = 56;
     else if (h.includes("NCM") || h.includes("CFOP")) w = 12;
     col.width = w;
-  }
-
-  if (descCol) {
-    ws.getRow(1).getCell(descCol).alignment = ALIGN_CENTER;
   }
 
   applyNumericFormats(ws, headerToCol, maxRow);
