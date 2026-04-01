@@ -35,10 +35,10 @@ export default function ToolsHubPage() {
   const hubThreePlusOne = list.length === 4;
 
   const hubGridClass = [
-    "mx-auto grid w-full items-stretch gap-3 px-0.5 max-[480px]:grid-cols-1 sm:grid-cols-2 sm:gap-4",
+    "mx-auto grid w-full items-stretch gap-4 px-0.5 max-[480px]:grid-cols-1 sm:grid-cols-2 sm:gap-5",
     hubThreePlusOne
-      ? "max-w-3xl md:max-w-5xl md:grid-cols-6 md:gap-4 lg:max-w-6xl lg:gap-5"
-      : "max-w-3xl md:max-w-4xl md:grid-cols-3 md:gap-5",
+      ? "max-w-3xl md:max-w-5xl md:grid-cols-6 md:gap-5 lg:max-w-6xl lg:gap-6"
+      : "max-w-3xl md:max-w-4xl md:grid-cols-3 md:gap-6",
   ].join(" ");
 
   return (
@@ -78,17 +78,21 @@ function ToolCard({ tool }: { tool: ToolManifestEntry }) {
   const accent = TOOL_ACCENT[tool.id] ?? TOOL_ACCENT.nfe;
 
   const inner = (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-2">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-2.5">
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full bg-gradient-to-br ${accent} opacity-[0.13] blur-2xl transition-opacity duration-300 group-hover:opacity-[0.18]`}
+      />
       <div className="flex shrink-0 items-start gap-2">
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${accent} text-white shadow-md ring-1 ring-white/55 transition-transform duration-200 group-hover:scale-[1.02] sm:h-10 sm:w-10 sm:rounded-xl sm:ring-2`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-white shadow-[0_12px_24px_-14px_rgb(34_78_97/0.9)] ring-1 ring-white/60 transition-transform duration-200 group-hover:scale-[1.04] sm:h-11 sm:w-11 sm:ring-2`}
           aria-hidden
         >
-          <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={2} />
+          <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={2.1} />
         </div>
         <div className="min-w-0 flex-1 pt-px">
           <div className="flex items-start justify-between gap-1.5">
-            <h2 className="font-display text-[15px] font-bold leading-tight tracking-tight text-brand-inkStrong sm:text-base">
+            <h2 className="font-display text-base font-bold leading-tight tracking-tight text-brand-inkStrong sm:text-lg">
               {tool.title}
             </h2>
             <div className="flex shrink-0 items-start gap-1.5">
@@ -117,13 +121,13 @@ function ToolCard({ tool }: { tool: ToolManifestEntry }) {
               )}
             </div>
           </div>
-          <p className="mt-px text-[9px] font-bold uppercase tracking-[0.12em] text-[#347891] sm:mt-0.5 sm:text-[10px] sm:tracking-[0.14em]">
+          <p className="mt-px text-[9px] font-bold uppercase tracking-[0.12em] text-[#3c7f97] sm:mt-0.5 sm:text-[10px] sm:tracking-[0.14em]">
             {tool.subtitle}
           </p>
         </div>
       </div>
       {tool.available && (
-        <span className="relative mt-auto flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#2d6a82] transition-all duration-200 group-hover:gap-1.5 group-hover:text-[#447f98] sm:text-[13px]">
+        <span className="relative mt-auto inline-flex w-fit shrink-0 items-center gap-1 rounded-full border border-[#c5dfe8] bg-[#f2fafd] px-2.5 py-1 text-[12px] font-semibold text-[#2d6a82] transition-all duration-200 group-hover:gap-1.5 group-hover:border-[#9ec8d8] group-hover:bg-[#e8f5fa] group-hover:text-[#2b6f88] sm:text-[13px]">
           Abrir ferramenta
           <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5 sm:h-3.5 sm:w-3.5" />
         </span>
@@ -132,11 +136,11 @@ function ToolCard({ tool }: { tool: ToolManifestEntry }) {
   );
 
   const cardBase =
-    "group relative flex h-full min-h-[168px] w-full min-w-0 flex-col overflow-visible rounded-xl p-3 outline-none sm:min-h-[178px] sm:rounded-2xl sm:p-3.5";
+    "group relative flex h-full min-h-[176px] w-full min-w-0 flex-col overflow-visible rounded-2xl p-3.5 outline-none sm:min-h-[188px] sm:rounded-3xl sm:p-4";
 
-  const cardAvailable = `${cardBase} border border-[#dadee1]/90 bg-white shadow-[0_2px_10px_-2px_rgb(68_127_152/0.12)] transition-[transform,box-shadow,border-color] duration-200 [-webkit-tap-highlight-color:transparent] hover:-translate-y-px hover:border-[#b9d8e1] hover:shadow-[0_8px_22px_-6px_rgb(68_127_152/0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#447f98]/55`;
+  const cardAvailable = `${cardBase} border border-[#d4e4eb]/95 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] shadow-[0_8px_24px_-16px_rgb(41_85_104/0.55)] transition-[transform,box-shadow,border-color,background] duration-250 [-webkit-tap-highlight-color:transparent] hover:-translate-y-0.5 hover:border-[#aacede] hover:bg-[linear-gradient(180deg,#ffffff_0%,#f5fbfe_100%)] hover:shadow-[0_18px_38px_-20px_rgb(41_85_104/0.8)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#447f98]/55`;
 
-  const cardDisabled = `${cardBase} cursor-not-allowed border border-brand-line/60 bg-gradient-to-b from-brand-bg/50 to-brand-bg/25 opacity-85 shadow-[0_2px_12px_-4px_rgb(68_127_152/0.08)]`;
+  const cardDisabled = `${cardBase} cursor-not-allowed border border-brand-line/60 bg-gradient-to-b from-brand-bg/55 to-brand-bg/30 opacity-85 shadow-[0_6px_18px_-12px_rgb(68_127_152/0.35)]`;
 
   if (tool.available) {
     return (
