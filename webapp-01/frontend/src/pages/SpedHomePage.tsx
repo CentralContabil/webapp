@@ -228,7 +228,7 @@ export default function SpedHomePage() {
           <ToolPageTitle left="SPED" right="XLSX" size="home" />
         </motion.div>
         <motion.p
-          className="mt-3 text-[15px] leading-relaxed text-[#1e3d4d]"
+          className="mx-auto mt-3 max-w-2xl text-[15px] leading-relaxed text-[#1e3d4d]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
@@ -270,7 +270,7 @@ export default function SpedHomePage() {
         {files.length > 0 && (
           <motion.div
             key="files-panel"
-            className={`flex flex-col p-4 ${toolPanelClass}`}
+            className={`flex flex-col p-5 sm:p-6 ${toolPanelClass}`}
             initial={{ opacity: 0, y: 28, scale: 0.97, filter: "blur(8px)" }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, y: -16, scale: 0.98, filter: "blur(6px)" }}
@@ -285,7 +285,7 @@ export default function SpedHomePage() {
                   initial={{ opacity: 0, x: -16, scale: 0.97 }}
                   animate={{ opacity: 1, x: 0, scale: 1 }}
                   transition={transitionSmooth}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-brand-soft/90 px-3 py-2 text-sm text-brand-ink ring-1 ring-brand-line/60"
+                  className="flex items-center justify-between gap-2 rounded-xl bg-gradient-to-b from-brand-soft/90 to-brand-soft/70 px-3 py-2.5 text-sm text-brand-ink ring-1 ring-brand-line/60"
                 >
                   <span className="min-w-0 truncate" title={fileLabel(f)}>
                     {fileLabel(f)}
@@ -303,14 +303,14 @@ export default function SpedHomePage() {
                 </motion.li>
               ))}
             </ul>
-            <div className="mt-4 rounded-lg border border-brand-line/50 bg-white/80 p-3 text-left">
-              <p className="text-xs font-semibold text-brand-ink">
+            <div className="mt-5 rounded-xl border border-brand-line/50 bg-white/85 p-4 text-left shadow-[0_10px_28px_-20px_rgb(42_79_96/0.45)]">
+              <p className="text-[12px] font-semibold text-brand-ink">
                 Abas da planilha (cada opção vira uma aba no Excel)
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-2.5 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
+                  className="rounded-lg bg-brand-soft px-2.5 py-1.5 text-xs font-semibold text-brand-ink ring-1 ring-brand-line/60 transition-colors hover:bg-[#d8ebf3]"
                   onClick={() => {
                     setSelectedSheets(new Set(listedRegs));
                   }}
@@ -319,13 +319,13 @@ export default function SpedHomePage() {
                 </button>
                 <button
                   type="button"
-                  className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-ink ring-1 ring-brand-line/60"
+                  className="rounded-lg bg-brand-soft px-2.5 py-1.5 text-xs font-semibold text-brand-ink ring-1 ring-brand-line/60 transition-colors hover:bg-[#d8ebf3]"
                   onClick={() => setSelectedSheets(new Set())}
                 >
                   Desmarcar todos
                 </button>
               </div>
-              <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1 text-sm" role="list">
+              <ul className="mt-3.5 max-h-80 space-y-2 overflow-y-auto rounded-lg bg-[#fbfeff] p-2 pr-1 text-sm ring-1 ring-brand-line/40" role="list">
                 {listedRegs.map((key) => {
                   const isCore = SPED_CORE_LIST.includes(key);
                   const title = spedRegMeta?.descriptions[key]?.trim();
@@ -337,7 +337,7 @@ export default function SpedHomePage() {
                         ? `${key} — Sem descrição no guia`
                         : key;
                   return (
-                    <li key={key} className="flex items-start gap-2">
+                    <li key={key} className="flex items-start gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-[#eef8fc]">
                       <input
                         id={`sped-sheet-${key}`}
                         type="checkbox"
@@ -374,7 +374,7 @@ export default function SpedHomePage() {
               type="button"
               disabled={busy || inspecting || presentRegs === null || selectedSheets.size === 0}
               onClick={submit}
-              className={`mt-4 ${toolPrimaryButtonClass}`}
+              className={`mt-5 ${toolPrimaryButtonClass}`}
               whileHover={busy ? undefined : { scale: 1.015, boxShadow: "0 12px 40px -8px rgb(42 79 96 / 0.2)" }}
               whileTap={busy ? undefined : { scale: 0.985 }}
               transition={springSnappy}

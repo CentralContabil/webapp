@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from datetime import date, datetime
 from typing import Any
 
@@ -30,6 +31,14 @@ def cell_str(value: Any) -> str:
 
 _NUMERIC_FIELD_RE = re.compile(r"^(VL_|ALIQ_|QTD$|QUANT_)", re.IGNORECASE)
 _TEMPLATE_NUMERIC_RE = re.compile(r"^-?\d+(?:[.,]\d+)?$")
+
+
+def _sanitize_text(value: str) -> str:
+    # Regra operacional solicitada: normalizar cedilha e til no SPED de saída.
+    s = value.replace("ç", "c").replace("Ç", "C").replace("~", "")
+    decomp = unicodedata.normalize("NFD", s)
+    decomp = "".join(ch for ch in decomp if ch not in ("\u0303", "\u0327"))  # til e cedilha combinantes
+    return unicodedata.normalize("NFC", decomp)
 
 
 def _normalize_date_ddmmaaaa(value: Any) -> str:
@@ -136,8 +145,8 @@ def normalize_sped_field(field_name: str, value: Any, template_value: str | None
                 return v.replace(",", ".")
         return v.replace(".", ",")
     if template_value is not None:
-        return _normalize_with_template(value, template_value)
-    return cell_str(value)
+        return _sanitize_text(_normalize_with_template(value, template_value))
+    return _sanitize_text(cell_str(value))
 
 
 def sorted_extra_keys(columns: list[str]) -> list[str]:

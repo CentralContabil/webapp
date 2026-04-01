@@ -43,12 +43,29 @@ def _sorted_col_keys(columns: list[str]) -> list[str]:
 
 
 def _read_text(path: Path) -> str:
-    for enc in ("utf-8", "latin-1", "cp1252"):
+    # Mantido por compatibilidade com chamadas legadas.
+    text, _enc = _read_text_with_encoding(path)
+    return text
+
+
+def _read_text_with_encoding(path: Path) -> tuple[str, str]:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise RuntimeError(f"Não foi possível ler {path}") from exc
+
+    # Ordem intencional:
+    # 1) UTF-8 estrito (preserva arquivos já UTF-8 sem corromper),
+    # 2) CP1252 (mais comum no ecossistema Windows/PVA),
+    # 3) Latin-1 (fallback amplo sem perda por exceção).
+    for enc in ("utf-8", "cp1252", "latin-1"):
         try:
-            return path.read_text(encoding=enc, errors="replace")
-        except OSError:
+            return raw.decode(enc), enc
+        except UnicodeDecodeError:
             continue
-    raise RuntimeError(f"Não foi possível ler {path}")
+
+    # Último fallback: evita crash em arquivo malformado.
+    return raw.decode("utf-8", errors="replace"), "utf-8"
 
 
 def _reg_from_sped_line(line: str) -> str | None:
@@ -64,8 +81,9 @@ def merge_sped_from_xlsx(sped_path: Path | None, xlsx_path: Path, output_path: P
     text = ""
     lines: list[str] = []
     from_original = sped_path is not None
+    source_encoding = "utf-8"
     if sped_path is not None:
-        text = _read_text(sped_path)
+        text, source_encoding = _read_text_with_encoding(sped_path)
         lines = text.splitlines()
         if not lines:
             raise ValueError("Arquivo SPED vazio.")
@@ -159,4 +177,5 @@ def merge_sped_from_xlsx(sped_path: Path | None, xlsx_path: Path, output_path: P
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     trailing = "\n" if (from_original and text.endswith("\n")) else "\n"
-    output_path.write_text("\n".join(lines) + trailing, encoding="utf-8", newline="\n")
+    output_encoding = source_encoding if from_original else "utf-8"
+    output_path.write_text("\n".join(lines) + trailing, encoding=output_encoding, newline="\n")

@@ -114,6 +114,27 @@ def test_merge_generico_usa_template_original_para_data_e_numero(tmp_path: Path)
     assert "16664.42" not in merged
 
 
+def test_merge_preserva_acentuacao_cp1252_no_sped_original(tmp_path: Path) -> None:
+    sped = tmp_path / "orig_cp1252.txt"
+    xlsx = tmp_path / "edit_cp1252.xlsx"
+    out = tmp_path / "out_cp1252.txt"
+
+    sped.write_bytes("|0500|01012026|A|TESTE|Despesa com Veículos|\n".encode("cp1252"))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "0500"
+    ws.append(["_LINHA", "COL_01", "COL_02", "COL_03", "COL_04", "COL_05"])
+    ws.append([1, "0500", "01012026", "A", "TESTE", "Despesa com Veículos"])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(sped, xlsx, out)
+
+    merged = out.read_bytes()
+    assert b"Ve\xedculos" in merged  # 'í' em cp1252
+    assert b"\xef\xbf\xbd" not in merged  # caractere de substituição UTF-8 (�)
+
+
 def test_merge_preserva_quantidade_de_campos_por_linha_no_generico(tmp_path: Path) -> None:
     sped = tmp_path / "orig_fields.txt"
     xlsx = tmp_path / "edit_fields.xlsx"
@@ -201,6 +222,25 @@ def test_merge_sem_sped_original_ajusta_k010_e_remove_cauda_vazia(tmp_path: Path
     lines = out.read_text(encoding="utf-8", errors="replace").splitlines()
     assert lines[0] == "|K010|0|"
     assert lines[1] == "|1010|N|N|N|N|N|N|N|N|N|N|N|N|N|"
+
+
+def test_merge_sem_sped_original_sanitiza_cedilha_e_til(tmp_path: Path) -> None:
+    xlsx = tmp_path / "only_0500.xlsx"
+    out = tmp_path / "out_0500.txt"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "0500"
+    ws.append(["_LINHA", "REG", "DT_ALT", "COD_NAT_CC", "IND_CTA", "NIVEL", "NOME_CTA"])
+    ws.append([1, "0500", "01012026", "06", "A", "5", "Ação ~ São João"])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(None, xlsx, out)
+
+    line = out.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+    assert "Ação" not in line
+    assert "São" not in line
+    assert "~" not in line
+    assert "Acao  Sao Joao" in line
 
 
 def test_inspect_xlsx_exige_sped_original_quando_layout_incompleto(tmp_path: Path) -> None:
