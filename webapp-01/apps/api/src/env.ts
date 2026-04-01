@@ -1,6 +1,10 @@
 import path from "node:path";
 import { z } from "zod";
 
+function defaultWebapp03Dir(): string {
+  return path.resolve(process.cwd(), "../webapp-03");
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
   PORT: z.coerce.number().default(8000),
@@ -15,6 +19,9 @@ const EnvSchema = z.object({
   MAX_UPLOAD_MB: z.coerce.number().default(50),
   /** Quantidade máxima de XMLs consolidados por job (pastas grandes). */
   MAX_XML_FILES: z.coerce.number().default(5000),
+  /** Diretório do motor Python de merge SPED (webapp-03). */
+  SPED_MERGE_DIR: z.string().default(defaultWebapp03Dir()),
+  PYTHON_CMD: z.string().default(process.platform === "win32" ? "py" : "python3"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -392,9 +392,9 @@ export async function getSpedJob(id: string): Promise<JobResponse> {
   return res.json() as Promise<JobResponse>;
 }
 
-export async function createSpedMergeJob(spedTxt: File, xlsx: File): Promise<{ id: string }> {
+export async function createSpedMergeJob(spedTxt: File | null, xlsx: File): Promise<{ id: string }> {
   const fd = new FormData();
-  fd.append("sped", spedTxt);
+  if (spedTxt) fd.append("sped", spedTxt);
   fd.append("xlsx", xlsx);
 
   const controller = new AbortController();
@@ -439,6 +439,43 @@ export async function createSpedMergeJob(spedTxt: File, xlsx: File): Promise<{ i
     throw new Error(msg);
   }
   return res.json() as Promise<{ id: string }>;
+}
+
+export type SpedMergeInspectXlsxResult = {
+  complete: boolean;
+  requiresOriginal: boolean;
+  reasons: string[];
+  regSheets: string[];
+};
+
+export async function inspectSpedMergeXlsx(xlsx: File): Promise<SpedMergeInspectXlsxResult> {
+  const fd = new FormData();
+  fd.append("xlsx", xlsx);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${API_PREFIX}/tools/sped-merge/inspect-xlsx`, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if (!res.ok) {
+    if (res.status === 404 || res.status === 405) {
+      return {
+        complete: false,
+        requiresOriginal: true,
+        reasons: ["API sem rota /tools/sped-merge/inspect-xlsx (servidor desatualizado)"],
+        regSheets: [],
+      };
+    }
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? res.statusText);
+  }
+  return res.json() as Promise<SpedMergeInspectXlsxResult>;
 }
 
 export async function getSpedMergeJob(id: string): Promise<JobResponse> {

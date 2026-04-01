@@ -32,7 +32,7 @@ function absolutizeJobPath(filePath: string): string {
 
 function runMergeCli(job: { updateProgress: (n: number) => Promise<void> }, data: SpedMergeJobPayload): Promise<void> {
   return new Promise((resolve, reject) => {
-    const spedPath = absolutizeJobPath(data.spedPath);
+    const spedPath = data.spedPath ? absolutizeJobPath(data.spedPath) : undefined;
     const xlsxPath = absolutizeJobPath(data.xlsxPath);
     const outputPath = absolutizeJobPath(data.outputPath);
     const cwd = env.SPED_MERGE_DIR;
@@ -44,14 +44,13 @@ function runMergeCli(job: { updateProgress: (n: number) => Promise<void> }, data
         ? [
             "-3",
             cliPath,
-            "--sped",
-            spedPath,
             "--xlsx",
             xlsxPath,
             "--output",
             outputPath,
+            ...(spedPath ? ["--sped", spedPath] : []),
           ]
-        : [cliPath, "--sped", spedPath, "--xlsx", xlsxPath, "--output", outputPath];
+        : [cliPath, "--xlsx", xlsxPath, "--output", outputPath, ...(spedPath ? ["--sped", spedPath] : [])];
 
     const child = spawn(cmd, args, {
       cwd,

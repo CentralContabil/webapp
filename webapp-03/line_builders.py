@@ -121,6 +121,10 @@ def _normalize_with_template(value: Any, template_value: str) -> str:
 
 
 def normalize_sped_field(field_name: str, value: Any, template_value: str | None = None) -> str:
+    # Quando há template (SPED original), célula vazia no XLSX
+    # deve manter o valor original para evitar perda estrutural.
+    if template_value is not None and cell_str(value) == "":
+        return template_value
     name = (field_name or "").upper()
     if name.startswith("DT_"):
         return _normalize_date_ddmmaaaa(value)

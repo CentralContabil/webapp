@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { createSpedMergeJob, getSpedMergeJob, type JobResponse } from "../api.js";
+import {
+  createSpedMergeJob,
+  getSpedMergeJob,
+  inspectSpedMergeXlsx,
+  type JobResponse,
+} from "../api.js";
 import { fileLabel, getSpedFilesFromEvent } from "../dropFiles.js";
 import { ToolPageTitle } from "../components/ToolPageTitle.js";
 import {
@@ -28,6 +33,9 @@ export default function SpedMergeHomePage() {
   const [job, setJob] = useState<JobResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [needsOriginalSped, setNeedsOriginalSped] = useState(false);
+  const [inspectMsg, setInspectMsg] = useState<string | null>(null);
+  const [inspectingXlsx, setInspectingXlsx] = useState(false);
 
   const onDropSped = useCallback((accepted: File[]) => {
     setSpedFile(accepted[0] ?? null);
@@ -35,8 +43,34 @@ export default function SpedMergeHomePage() {
   }, []);
 
   const onDropXlsx = useCallback((accepted: File[]) => {
-    setXlsxFile(accepted[0] ?? null);
+    const f = accepted[0] ?? null;
+    setXlsxFile(f);
+    setSpedFile(null);
+    setNeedsOriginalSped(false);
+    setInspectMsg(null);
     setErr(null);
+    if (!f) return;
+    void (async () => {
+      setInspectingXlsx(true);
+      try {
+        const inspected = await inspectSpedMergeXlsx(f);
+        if (inspected.requiresOriginal) {
+          setNeedsOriginalSped(true);
+          const reason = inspected.reasons.length > 0 ? ` ${inspected.reasons[0]}` : "";
+          setInspectMsg(`Planilha parcial detectada.${reason} Envie também o SPED original.`);
+        } else {
+          setNeedsOriginalSped(false);
+          setInspectMsg("Planilha completa detectada. O SPED original não é necessário.");
+        }
+      } catch (e) {
+        setNeedsOriginalSped(true);
+        setInspectMsg("Não foi possível validar a planilha automaticamente. Envie também o SPED original.");
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+      finally {
+        setInspectingXlsx(false);
+      }
+    })();
   }, []);
 
   const spedDrop = useDropzone({
@@ -45,7 +79,8 @@ export default function SpedMergeHomePage() {
     multiple: false,
     getFilesFromEvent: getSpedFilesFromEvent,
     validator: (file) => {
-      if (file.name.toLowerCase().endsWith(".txt")) return null;
+      const name = typeof file?.name === "string" ? file.name.toLowerCase() : "";
+      if (name.endsWith(".txt")) return null;
       return { code: "file-invalid-type", message: "Use o arquivo de texto da declaração" };
     },
   });
@@ -55,13 +90,15 @@ export default function SpedMergeHomePage() {
     maxFiles: 1,
     multiple: false,
     validator: (file) => {
-      if (file.name.toLowerCase().endsWith(".xlsx")) return null;
+      const name = typeof file?.name === "string" ? file.name.toLowerCase() : "";
+      if (name.endsWith(".xlsx")) return null;
       return { code: "file-invalid-type", message: "Use um arquivo de planilha" };
     },
   });
 
   const submit = async () => {
-    if (!spedFile || !xlsxFile) return;
+    if (!xlsxFile) return;
+    if (needsOriginalSped && !spedFile) return;
     setBusy(true);
     setErr(null);
     setJob(null);
@@ -114,7 +151,7 @@ export default function SpedMergeHomePage() {
         ? "Na fila…"
         : "Aguarde…";
 
-  const bothSelected = Boolean(spedFile && xlsxFile);
+  const readyToSubmit = Boolean(!inspectingXlsx && xlsxFile && (!needsOriginalSped || spedFile));
 
   return (
     <motion.div
@@ -142,32 +179,11 @@ export default function SpedMergeHomePage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          Primeiro o arquivo original da declaração; depois a planilha que você já alterou por aqui. O que você não
-          mexeu na planilha continua igual no arquivo final.
+          Envie primeiro a planilha editada. Se ela estiver parcial, pediremos o SPED original automaticamente.
         </motion.p>
       </motion.header>
 
-      <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 max-[400px]:grid-cols-1">
-        <section {...spedDrop.getRootProps()} className={toolDropzoneClass(spedDrop.isDragActive)}>
-          <motion.div
-            className="flex min-h-0 w-full flex-col"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...transitionSmooth, delay: 0.1 }}
-          >
-            <input {...spedDrop.getInputProps({ accept: ".txt,text/plain" })} />
-            <p className="font-display text-sm font-semibold text-brand-ink">1. Arquivo original</p>
-            <p className="mt-1 text-xs text-[#347891]">
-              {spedDrop.isDragActive ? "Solte…" : "Clique ou arraste o arquivo que ainda não foi editado"}
-            </p>
-            {spedFile && (
-              <p className="mt-2 truncate text-xs text-accent" title={fileLabel(spedFile)}>
-                {fileLabel(spedFile)}
-              </p>
-            )}
-          </motion.div>
-        </section>
-
+      <div className={`grid min-w-0 gap-3 sm:gap-4 ${needsOriginalSped ? "grid-cols-2 max-[400px]:grid-cols-1" : "grid-cols-1"}`}>
         <section {...xlsxDrop.getRootProps()} className={toolDropzoneClass(xlsxDrop.isDragActive)}>
           <motion.div
             className="flex min-h-0 w-full flex-col"
@@ -187,10 +203,37 @@ export default function SpedMergeHomePage() {
             )}
           </motion.div>
         </section>
+
+        {needsOriginalSped && (
+          <section {...spedDrop.getRootProps()} className={toolDropzoneClass(spedDrop.isDragActive)}>
+            <motion.div
+              className="flex min-h-0 w-full flex-col"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...transitionSmooth, delay: 0.14 }}
+            >
+              <input {...spedDrop.getInputProps({ accept: ".txt,text/plain" })} />
+              <p className="font-display text-sm font-semibold text-brand-ink">SPED original (obrigatório neste caso)</p>
+              <p className="mt-1 text-xs text-[#347891]">
+                {spedDrop.isDragActive ? "Solte…" : "Clique ou arraste o arquivo original .txt"}
+              </p>
+              {spedFile && (
+                <p className="mt-2 truncate text-xs text-accent" title={fileLabel(spedFile)}>
+                  {fileLabel(spedFile)}
+                </p>
+              )}
+            </motion.div>
+          </section>
+        )}
       </div>
+      {(inspectMsg || inspectingXlsx) && (
+        <p className="mt-2 text-xs text-[#2b6277]">
+          {inspectingXlsx ? "Validando planilha..." : inspectMsg}
+        </p>
+      )}
 
       <AnimatePresence mode="popLayout">
-        {bothSelected && (
+        {readyToSubmit && (
           <motion.div
             key="submit-panel"
             className={`flex flex-col p-4 ${toolPanelClass}`}

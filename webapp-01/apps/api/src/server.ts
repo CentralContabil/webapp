@@ -7,6 +7,7 @@ import rateLimit from "@fastify/rate-limit";
 import fs from "node:fs";
 import readline from "node:readline";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import {
   API_PREFIX,
   SPED_EXPORT_SHEET_KEYS,
@@ -47,6 +48,73 @@ function extractRegFromSpedLine(line: string): string | null {
   const inner = fields.slice(1, -1);
   const reg = (inner[0] || "").trim().toUpperCase();
   return SPED_REG_CODE_RE.test(reg) ? reg : null;
+}
+
+type SpedMergeXlsxInspect = {
+  complete: boolean;
+  requiresOriginal: boolean;
+  reasons: string[];
+  regSheets: string[];
+};
+
+async function inspectSpedMergeXlsx(env: ReturnType<typeof loadEnv>, xlsxPath: string): Promise<SpedMergeXlsxInspect> {
+  const cwd = env.SPED_MERGE_DIR;
+  const cliPath = path.join(cwd, "inspect_xlsx.py");
+  const cmd = env.PYTHON_CMD.trim();
+  const base = path.basename(cmd).replace(/\.exe$/i, "").toLowerCase();
+  const args =
+    base === "py" ? ["-3", cliPath, "--xlsx", xlsxPath] : [cliPath, "--xlsx", xlsxPath];
+  return await new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    const stderrChunks: Buffer[] = [];
+    child.stderr?.on("data", (c: Buffer) => stderrChunks.push(c));
+    let out: SpedMergeXlsxInspect | null = null;
+    let jsonErr: string | null = null;
+    const rl = readline.createInterface({ input: child.stdout! });
+    rl.on("line", (line) => {
+      const s = line.trim();
+      if (!s.startsWith("{")) return;
+      try {
+        const obj = JSON.parse(s) as {
+          kind?: string;
+          message?: string;
+          complete?: boolean;
+          requiresOriginal?: boolean;
+          reasons?: string[];
+          regSheets?: string[];
+        };
+        if (obj.kind === "error") {
+          jsonErr = obj.message ?? "Falha ao inspecionar XLSX";
+          return;
+        }
+        if (obj.kind === "ok") {
+          out = {
+            complete: Boolean(obj.complete),
+            requiresOriginal: Boolean(obj.requiresOriginal),
+            reasons: Array.isArray(obj.reasons) ? obj.reasons.map(String) : [],
+            regSheets: Array.isArray(obj.regSheets) ? obj.regSheets.map(String) : [],
+          };
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      rl.close();
+      if (jsonErr) return reject(new Error(jsonErr));
+      if (code !== 0) {
+        const errText = Buffer.concat(stderrChunks).toString("utf-8").trim().slice(0, 800);
+        return reject(new Error(errText || `inspect_xlsx falhou (${code})`));
+      }
+      if (!out) return reject(new Error("inspect_xlsx não retornou JSON válido"));
+      resolve(out);
+    });
+  });
 }
 
 function parseJsonRegArray(
@@ -651,6 +719,48 @@ app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
   }
 );
 
+app.post(`${API_PREFIX}/tools/sped-merge/inspect-xlsx`, async (req, reply) => {
+  const jobId = randomUUID();
+  const inDir = path.join(jobDir(jobId), "in");
+  await fs.promises.mkdir(inDir, { recursive: true });
+  let gotXlsx = false;
+  let xlsxPath = "";
+  let totalBytes = 0;
+  const parts = req.parts();
+  for await (const part of parts) {
+    if (part.type !== "file") continue;
+    const name = (part.filename ?? "file").replace(/[/\\]/g, "_");
+    const lower = name.toLowerCase();
+    if (!lower.endsWith(".xlsx") && !lower.endsWith(".xlsm")) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      return reply.code(400).send({ error: "A planilha deve ser .xlsx" });
+    }
+    const buf = await part.toBuffer();
+    totalBytes += buf.length;
+    if (totalBytes > env.MAX_UPLOAD_MB * 1024 * 1024) {
+      await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+      return reply.code(413).send({ error: "Payload muito grande" });
+    }
+    xlsxPath = path.join(inDir, "planilha.xlsx");
+    await fs.promises.writeFile(xlsxPath, buf);
+    gotXlsx = true;
+  }
+  if (!gotXlsx) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply.code(400).send({ error: "Envie a planilha .xlsx" });
+  }
+  try {
+    const inspected = await inspectSpedMergeXlsx(env, xlsxPath);
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return inspected;
+  } catch (e) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply
+      .code(500)
+      .send({ error: e instanceof Error ? e.message : "Falha ao inspecionar planilha" });
+  }
+});
+
 app.post(`${API_PREFIX}/tools/sped-merge/jobs`, async (req, reply) => {
   const jobId = randomUUID();
   const inDir = path.join(jobDir(jobId), "in");
@@ -705,16 +815,35 @@ app.post(`${API_PREFIX}/tools/sped-merge/jobs`, async (req, reply) => {
       continue;
     }
     await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
-    return reply.code(400).send({ error: "Use os campos sped (.txt) e xlsx (.xlsx)." });
+    return reply.code(400).send({ error: "Use o campo xlsx (.xlsx) e, opcionalmente, sped (.txt)." });
   }
 
-  if (!gotSped || !gotXlsx) {
+  if (!gotXlsx) {
     await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
-    return reply.code(400).send({ error: "Envie o SPED .txt e o XLSX (dois arquivos)." });
+    return reply.code(400).send({ error: "Envie a planilha .xlsx." });
   }
 
-  const spedPath = path.join(inDir, "sped.txt");
   const xlsxPath = path.join(inDir, "planilha.xlsx");
+  let inspected: SpedMergeXlsxInspect;
+  try {
+    inspected = await inspectSpedMergeXlsx(env, xlsxPath);
+  } catch (e) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply
+      .code(500)
+      .send({ error: e instanceof Error ? e.message : "Falha ao validar a planilha." });
+  }
+
+  if (inspected.requiresOriginal && !gotSped) {
+    await fs.promises.rm(jobDir(jobId), { recursive: true, force: true });
+    return reply.code(400).send({
+      error:
+        "Planilha parcial/dinâmica detectada. Envie também o SPED original (.txt). Motivo: " +
+        inspected.reasons.join("; "),
+    });
+  }
+
+  const spedPath = gotSped ? path.join(inDir, "sped.txt") : undefined;
   const outputPath = path.join(outDir, "SPED_mesclado.txt");
 
   try {
@@ -723,7 +852,7 @@ app.post(`${API_PREFIX}/tools/sped-merge/jobs`, async (req, reply) => {
         "merge",
         {
           jobId,
-          spedPath,
+          ...(spedPath ? { spedPath } : {}),
           xlsxPath,
           outputPath,
         } satisfies SpedMergeJobPayload,

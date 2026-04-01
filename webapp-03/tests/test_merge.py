@@ -145,6 +145,40 @@ def test_merge_preserva_quantidade_de_campos_por_linha_no_generico(tmp_path: Pat
     assert len(r1010_inner) == 14
 
 
+def test_merge_sem_sped_original_gera_saida_por_linha(tmp_path: Path) -> None:
+    xlsx = tmp_path / "only.xlsx"
+    out = tmp_path / "out_only.txt"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "C100"
+    ws.append(["_LINHA", "REG", "IND_OPER", "IND_EMIT", "COD_PART", "COD_MOD", "COD_SIT", "SER", "NUM_DOC", "CHV_NFE", "DT_DOC", "DT_E_S", "VL_DOC"])
+    ws.append([1, "C100", "1", "0", "P", "55", "00", "1", "123", "CHV", "02022026", "02022026", "100,00"])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(None, xlsx, out)
+
+    lines = out.read_text(encoding="utf-8", errors="replace").splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("|C100|1|0|P|55|00|1|123|CHV|02022026|02022026|100,00|")
+
+
+def test_inspect_xlsx_exige_sped_original_quando_layout_incompleto(tmp_path: Path) -> None:
+    xlsx = tmp_path / "only_tail.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "K010"
+    ws.append(["_LINHA", "REG", "COL_02", "COL_03"])
+    ws.append([1, "K010", "0", ""])
+    ws2 = wb.create_sheet("1010")
+    ws2.append(["_LINHA", "REG", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "EXTRA_01"])
+    ws2.append([2, "1010", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "", ""])
+    wb.save(xlsx)
+    from inspect_xlsx import inspect_xlsx
+    inspected = inspect_xlsx(xlsx)
+    assert inspected["requiresOriginal"] is True
+    assert any("colunas obrigatórias ausentes" in r for r in inspected["reasons"])
+
+
 def test_merge_normaliza_data_e_valor_no_c100(tmp_path: Path) -> None:
     sped = tmp_path / "orig_c100.txt"
     xlsx = tmp_path / "edit_c100.xlsx"

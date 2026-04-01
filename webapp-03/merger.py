@@ -60,11 +60,15 @@ def _reg_from_sped_line(line: str) -> str | None:
     return (parts[1] or "").strip().upper() or None
 
 
-def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) -> None:
-    text = _read_text(sped_path)
-    lines = text.splitlines()
-    if not lines:
-        raise ValueError("Arquivo SPED vazio.")
+def merge_sped_from_xlsx(sped_path: Path | None, xlsx_path: Path, output_path: Path) -> None:
+    text = ""
+    lines: list[str] = []
+    from_original = sped_path is not None
+    if sped_path is not None:
+        text = _read_text(sped_path)
+        lines = text.splitlines()
+        if not lines:
+            raise ValueError("Arquivo SPED vazio.")
 
     xl = pd.ExcelFile(xlsx_path, engine="openpyxl")
 
@@ -98,33 +102,42 @@ def merge_sped_from_xlsx(sped_path: Path, xlsx_path: Path, output_path: Path) ->
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Aba '{sheet}', linha Excel {idx + 2}: _LINHA inválida: {line_no!r}") from e
 
-            if n < 1 or n > len(lines):
-                raise ValueError(f"Aba '{sheet}', linha Excel {idx + 2}: _LINHA={n} fora do intervalo (1–{len(lines)}).")
+            if from_original:
+                if n < 1 or n > len(lines):
+                    raise ValueError(f"Aba '{sheet}', linha Excel {idx + 2}: _LINHA={n} fora do intervalo (1–{len(lines)}).")
 
-            orig = lines[n - 1]
-            reg_file = _reg_from_sped_line(orig)
-            if reg_file != sheet:
-                raise ValueError(
-                    f"Aba '{sheet}', _LINHA={n}: registro no SPED é {reg_file!r}, esperado {sheet!r}."
-                )
-            orig_inner = orig.rstrip("\r\n").split("|")[1:-1]
+                orig = lines[n - 1]
+                reg_file = _reg_from_sped_line(orig)
+                if reg_file != sheet:
+                    raise ValueError(
+                        f"Aba '{sheet}', _LINHA={n}: registro no SPED é {reg_file!r}, esperado {sheet!r}."
+                    )
+                orig_inner = orig.rstrip("\r\n").split("|")[1:-1]
+            else:
+                while len(lines) < n:
+                    lines.append("")
+                orig_inner = []
 
             row_dict = {c: row[c] for c in cols}
             if headers_rec is not None:
-                inner = inner_payload_for_register_with_template(sheet, row_dict, headers_rec, orig_inner)
+                inner = inner_payload_for_register_with_template(
+                    sheet, row_dict, headers_rec, orig_inner if from_original else None
+                )
             else:
                 inner = []
                 for i, c in enumerate(col_keys):
                     template_value = orig_inner[i] if i < len(orig_inner) else None
                     inner.append(normalize_sped_field(c, row_dict.get(c, ""), template_value))
-            inner = append_extras(inner, row_dict, cols, template_inner=orig_inner)
+            inner = append_extras(inner, row_dict, cols, template_inner=orig_inner if from_original else None)
             # Mantém a cardinalidade exata de campos da linha original para evitar
             # rejeições no PVA por "número de campos diferente do leiaute".
-            if len(inner) < len(orig_inner):
-                inner.extend([""] * (len(orig_inner) - len(inner)))
-            elif len(inner) > len(orig_inner):
-                inner = inner[: len(orig_inner)]
+            if from_original:
+                if len(inner) < len(orig_inner):
+                    inner.extend([""] * (len(orig_inner) - len(inner)))
+                elif len(inner) > len(orig_inner):
+                    inner = inner[: len(orig_inner)]
             lines[n - 1] = build_sped_line(inner)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines) + ("\n" if text.endswith("\n") else ""), encoding="utf-8", newline="\n")
+    trailing = "\n" if (from_original and text.endswith("\n")) else "\n"
+    output_path.write_text("\n".join(lines) + trailing, encoding="utf-8", newline="\n")

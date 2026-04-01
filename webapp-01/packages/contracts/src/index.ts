@@ -93,12 +93,21 @@ export type SpedJobPayload = z.infer<typeof SpedJobPayloadSchema>;
 
 export const SpedMergeJobPayloadSchema = z.object({
   jobId: z.string(),
-  spedPath: z.string(),
+  spedPath: z.string().optional(),
   xlsxPath: z.string(),
   outputPath: z.string(),
 });
 
 export type SpedMergeJobPayload = z.infer<typeof SpedMergeJobPayloadSchema>;
+
+export const SpedMergeInspectXlsxResponseSchema = z.object({
+  complete: z.boolean(),
+  requiresOriginal: z.boolean(),
+  reasons: z.array(z.string()),
+  regSheets: z.array(z.string()),
+});
+
+export type SpedMergeInspectXlsxResponse = z.infer<typeof SpedMergeInspectXlsxResponseSchema>;
 
 export const JobStatusSchema = z.enum([
   "queued",
