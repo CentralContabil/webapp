@@ -40,14 +40,12 @@ def inspect_xlsx(path: Path) -> dict:
         if "_LINHA" not in headers:
             reasons.append(f"Aba {n}: coluna _LINHA ausente")
             continue
-        if n not in MERGE_HEADERS:
-            reasons.append(f"Aba {n}: REG sem layout conhecido para geração sem SPED original")
-            continue
-        expected_cols = MERGE_HEADERS[n]
-        missing_cols = [c for c in expected_cols if c not in headers]
-        if missing_cols:
-            reasons.append(f"Aba {n}: colunas obrigatórias ausentes ({','.join(missing_cols[:20])})")
-            continue
+        if n in MERGE_HEADERS:
+            expected_cols = MERGE_HEADERS[n]
+            missing_cols = [c for c in expected_cols if c not in headers]
+            if missing_cols:
+                reasons.append(f"Aba {n}: colunas obrigatórias ausentes ({','.join(missing_cols[:20])})")
+                continue
         line_col = headers.index("_LINHA")
         for row in ws.iter_rows(min_row=2, values_only=True):
             if line_col >= len(row):

@@ -162,6 +162,47 @@ def test_merge_sem_sped_original_gera_saida_por_linha(tmp_path: Path) -> None:
     assert lines[0].startswith("|C100|1|0|P|55|00|1|123|CHV|02022026|02022026|100,00|")
 
 
+def test_merge_sem_sped_original_ajusta_k010_e_remove_cauda_vazia(tmp_path: Path) -> None:
+    xlsx = tmp_path / "only_k.xlsx"
+    out = tmp_path / "out_k.txt"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "K010"
+    ws.append(["_LINHA", "REG", "DT_INI", "DT_FIN"])
+    ws.append([1, "K010", "", ""])
+    ws2 = wb.create_sheet("1010")
+    ws2.append(
+        [
+            "_LINHA",
+            "REG",
+            "IND_EXP",
+            "IND_CCRF",
+            "IND_COMB",
+            "IND_USINA",
+            "IND_VA",
+            "IND_EE",
+            "IND_CART",
+            "IND_FORM",
+            "IND_AER",
+            "IND_GIAF1",
+            "IND_GIAF2",
+            "IND_GIAF3",
+            "IND_GIAF4",
+            "IND_REST_RESSARC_COMPL",
+            "IND_SIMPL",
+            "IND_RTR",
+        ]
+    )
+    ws2.append([2, "1010", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "", "", ""])
+    wb.save(xlsx)
+
+    merge_sped_from_xlsx(None, xlsx, out)
+
+    lines = out.read_text(encoding="utf-8", errors="replace").splitlines()
+    assert lines[0] == "|K010|0|"
+    assert lines[1] == "|1010|N|N|N|N|N|N|N|N|N|N|N|N|N|"
+
+
 def test_inspect_xlsx_exige_sped_original_quando_layout_incompleto(tmp_path: Path) -> None:
     xlsx = tmp_path / "only_tail.xlsx"
     wb = Workbook()

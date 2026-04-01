@@ -136,6 +136,25 @@ def merge_sped_from_xlsx(sped_path: Path | None, xlsx_path: Path, output_path: P
                     inner.extend([""] * (len(orig_inner) - len(inner)))
                 elif len(inner) > len(orig_inner):
                     inner = inner[: len(orig_inner)]
+            else:
+                # Compatibilidade PVA: K010 exige pelo menos IND_TIPO_EST.
+                if sheet == "K010":
+                    if len(inner) == 1:
+                        inner.append("0")
+                    elif len(inner) >= 2 and inner[1] == "":
+                        inner[1] = "0"
+                    if len(inner) > 2:
+                        inner = inner[:2]
+                # Compatibilidade retroativa: em alguns perfis o 1010 tem
+                # layout menor; removemos somente cauda vazia até o tamanho
+                # esperado nesses casos.
+                elif sheet == "1010":
+                    while len(inner) > 14 and inner[-1] == "":
+                        inner.pop()
+                    if len(inner) > 14:
+                        inner = inner[:14]
+                    elif len(inner) < 14:
+                        inner.extend([""] * (14 - len(inner)))
             lines[n - 1] = build_sped_line(inner)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
