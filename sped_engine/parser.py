@@ -105,34 +105,3 @@ class DefaultSpedParser:
                         cnpj = re.sub(r"\D", "", cnpj_raw) or cnpj
                 break
         return razao, cnpj
-
-    def extract_razao_cnpj_from_c100(self, text: str):
-        """
-        Novo método: pega Empresa e CNPJ cruzando C100.COD_PART com 0150
-        """
-        participantes = {}
-        cod_part = None
-
-        # Mapa COD_PART -> (NOME, CNPJ)
-        for raw in text.splitlines():
-            if raw.startswith("|0150|"):
-                parts = raw.split("|")
-                if len(parts) >= 6:
-                    cod = parts[2].strip()
-                    nome = (parts[3] or "").strip()
-                    cnpj_raw = (parts[4] or "").strip()
-                    cnpj = re.sub(r"\D", "", cnpj_raw) if cnpj_raw else ""
-                    participantes[cod] = (nome, cnpj)
-
-        # Primeiro COD_PART encontrado no C100
-        for raw in text.splitlines():
-            if raw.startswith("|C100|"):
-                parts = raw.split("|")
-                if len(parts) >= 5:
-                    cod_part = parts[4].strip()
-                    break
-
-        if cod_part and cod_part in participantes:
-            return participantes[cod_part]
-
-        return "RAZAO_DESCONHECIDA", "CNPJ_DESCONHECIDO"

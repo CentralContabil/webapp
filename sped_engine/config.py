@@ -1,4 +1,6 @@
-from openpyxl.styles import Alignment, PatternFill, Font
+from openpyxl.styles import PatternFill, Font
+
+# SHEET_ORDER: manter igual a SPED_EXPORT_SHEET_KEYS em webapp-01/packages/contracts/src/index.ts
 
 HEADERS = {
     "0150": ["REG","COD_PART","NOME","COD_PAIS","CNPJ","CPF","IE","COD_MUN","SUFRAMA","END","NUM","COMPL","BAIRRO"],
@@ -23,11 +25,26 @@ HEADERS = {
     "D500": ["REG","IND_OPER","IND_EMIT","COD_PART","COD_MOD","COD_SIT","SER","SUB","NUM_DOC","DT_DOC","DT_A_P","VL_DOC",
              "VL_DESC","VL_SERV","VL_SERV_NT","VL_TERC","VL_DA","VL_BC_ICMS","VL_ICMS","COD_INF","VL_PIS","VL_COFINS","TP_ASSINANTE"],
     "D590": ["REG","NUM_DOC","CST_ICMS","CFOP","ALIQ_ICMS","VL_OPR","VL_BC_ICMS","VL_ICMS","VL_BC_ICMS_UF","VL_ICMS_UF","VL_RED_BC","COD_OBS"],
+    # REG 0450 — informação complementar do documento fiscal (guia cabecalhos_sped.txt)
+    "0450": ["REG", "COD_INF", "TXT"],
+    # REG K200 — Bloco K, estoque escriturado (Guia EFD ICMS/IPI)
+    "K200": ["REG", "DT_EST", "COD_ITEM", "QTD", "IND_EST", "COD_PART"],
 }
-SHEET_ORDER = list(HEADERS.keys())
+# Ordem canónica dos 11 blocos principais — manter igual a SPED_EXPORT_SHEET_KEYS nos contracts
+SHEET_ORDER = [
+    "0150",
+    "0200",
+    "C100",
+    "C170",
+    "C190",
+    "C500",
+    "C590",
+    "D100",
+    "D190",
+    "D500",
+    "D590",
+]
 
 HEADER_FILL  = PatternFill(start_color="FF4F81BD", end_color="FF4F81BD", fill_type="solid")
 ALT_FILL     = PatternFill(start_color="FFDDEBF7", end_color="FFDDEBF7", fill_type="solid")
-HEADER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=False)
-CELL_ALIGN   = Alignment(horizontal="center", vertical="center", wrap_text=False)
 HEADER_FONT  = Font(color="FFFFFFFF", bold=True)
