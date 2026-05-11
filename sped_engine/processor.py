@@ -1,5 +1,46 @@
+import re
 import pandas as pd
 from config import SHEET_ORDER
+
+REG_RE = re.compile(r"^[0-9A-Z]{4}$")
+
+
+def _resolve_export_regs(requested):
+    """Lista de abas a exportar; vazio/None = os 11 blocos core. Aceita qualquer REG de 4 caracteres."""
+    if not requested:
+        return list(SHEET_ORDER)
+    out = []
+    seen = set()
+    for x in requested:
+        u = str(x).strip().upper()
+        if not REG_RE.match(u) or u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out if out else list(SHEET_ORDER)
+
+
+def minimal_context_regs(export_set):
+    """Inclui pais no parse quando só os filhos são exportados (NUM_DOC/CHV coerentes)."""
+    need = set()
+    if "C170" in export_set or "C190" in export_set:
+        need.add("C100")
+    if "C590" in export_set:
+        need.add("C500")
+    if "D190" in export_set:
+        need.add("D100")
+    if "D590" in export_set:
+        need.add("D500")
+    return need
+
+
+def build_parse_targets(export_regs):
+    export_set = set(export_regs)
+    ctx = minimal_context_regs(export_set)
+    parse_set = set(SHEET_ORDER) | export_set | ctx
+    tail = sorted(parse_set - set(SHEET_ORDER))
+    return list(SHEET_ORDER) + tail
+
 
 class Processor:
     def __init__(self, reader, parser, df_builder, writer, formatter, reporter, progress):
@@ -11,17 +52,19 @@ class Processor:
         self.reporter = reporter
         self.progress = progress
 
-    def run(self, sped_path, out_path):
+    def run(self, sped_path, out_path, export_regs=None):
+        export_regs = _resolve_export_regs(export_regs)
+        export_set = set(export_regs)
         text = self.reader.read(sped_path)
-        data = self.parser.parse(text, SHEET_ORDER)
+        parse_targets = build_parse_targets(export_regs)
+        data = self.parser.parse(text, parse_targets)
         razao, cnpj = self.parser.extract_razao_cnpj(text)
 
         summary, mismatches, dfs = [], [], {}
-        total_steps = len(SHEET_ORDER) + 3  # registros + writer + report + finalização
-        total_steps = len(SHEET_ORDER) + 3  # registros + writer + report + finalização
+        total_steps = len(export_regs) + 2
         self.progress.start(total_steps)
 
-        for rec in SHEET_ORDER:
+        for rec in export_regs:
             rows = data.get(rec, [])
             df, mext, mm = self.df_builder.build(rec, rows)
             total_rows = len(rows)
@@ -36,7 +79,6 @@ class Processor:
                     if r and r[0].upper() != rec:
                         mismatches.append({"REGISTRO": rec, "LINHA_IDX": i, "VALOR_REG_ENCONTRADO": r[0]})
 
-        # --- Validação de vínculos ---
         from collections import defaultdict
         expected = defaultdict(list)
         current_num_doc = ""
@@ -54,7 +96,7 @@ class Processor:
             if regx == "C100":
                 current_num_doc = fields[8] if len(fields) > 8 else ""
                 current_chv = fields[9] if len(fields) > 9 else ""
-            elif regx in ("C170","C190"):
+            elif regx in ("C170", "C190"):
                 expected[regx].append({"NUM_DOC": current_num_doc, "CHV_NFE": current_chv})
             elif regx == "C500":
                 current_num_doc_c500 = fields[10] if len(fields) > 10 else ""
@@ -71,7 +113,7 @@ class Processor:
                 expected[regx].append({"NUM_DOC": current_num_doc_d500})
 
         link_checks = {}
-        for _reg in ("C170","C190","C590","D190","D590"):
+        for _reg in ("C170", "C190", "C590", "D190", "D590"):
             try:
                 df_tmp = dfs.get(_reg)
                 exp_list = expected.get(_reg, [])
@@ -79,7 +121,7 @@ class Processor:
                     link_checks[_reg] = {"present": False, "rows_excel": 0, "rows_expected": len(exp_list)}
                     continue
                 has_num = "NUM_DOC" in df_tmp.columns
-                has_chv = any(c in df_tmp.columns for c in ("CHV_NFE","CHV_CTE"))
+                has_chv = any(c in df_tmp.columns for c in ("CHV_NFE", "CHV_CTE"))
                 n = min(len(df_tmp), len(exp_list))
                 mismatches_list = []
                 if has_num and has_chv and n > 0:
@@ -100,7 +142,6 @@ class Processor:
                                 "expected_CHV": exp_chv,
                                 "got_CHV": got_chv,
                             })
-                # Para C590 e D590 — comparar só NUM_DOC
                 if has_num and not has_chv and n > 0:
                     for i in range(n):
                         got_num = "" if pd.isna(df_tmp.iloc[i]["NUM_DOC"]) else str(df_tmp.iloc[i]["NUM_DOC"])
@@ -124,20 +165,30 @@ class Processor:
                 }
             except Exception as _e:
                 link_checks[_reg] = {"present": False, "error": str(_e)}
-        # --- Fim validação ---
 
-        self.writer.write(dfs, out_path)
+        dfs_out = {k: dfs[k] for k in export_regs if k in dfs}
+        summary_out = [s for s in summary if s["REGISTRO"] in export_set]
+        mismatches_out = [m for m in mismatches if m["REGISTRO"] in export_set]
+        link_checks_out = {k: v for k, v in link_checks.items() if k in export_set}
+        generic_export_regs = [r for r in export_regs if r not in self.df_builder.headers]
+
+        self.writer.write(dfs_out, out_path)
         self.progress.animate_local("Gerando Excel", duration_ms=3000, steps=60)
         self.progress.tick_global("Gerando Excel")
-        self.progress.tick_global("Gerando Excel")
-        # Tick adicional para indicar processamento após gerar Excel
-        # formatter não é mais necessário (XlsxWriter já cuida da formatação)
-        self.reporter.write_report(out_path, summary, mismatches, link_checks, razao, cnpj)
-        self.progress.animate_local("Gerando Relatório", duration_ms=3000, steps=60)
-        self.progress.tick_global("Gerando Relatório")
+        if self.reporter is not None:
+            self.reporter.write_report(
+                out_path,
+                summary_out,
+                mismatches_out,
+                link_checks_out,
+                razao,
+                cnpj,
+                generic_export_regs=generic_export_regs,
+            )
+            self.progress.animate_local("Gerando Relatório", duration_ms=3000, steps=60)
+            self.progress.tick_global("Gerando Relatório")
 
         self.progress.animate_local("Finalizando", duration_ms=2000, steps=40)
         self.progress.tick_global("Finalizando…")
-        self.progress.tick_global("Gerando Relatório")
-        # Tick final para indicar encerramento
+        self.progress.tick_global("Finalizado")
         return out_path

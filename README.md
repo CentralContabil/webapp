@@ -16,6 +16,13 @@ Pasta dedicada ao **desenvolvimento da ferramenta SPED → XLSX** na arquitetura
 - O worker SPED (Docker) será construído a partir do conteúdo desta pasta (ou copiando/adaptando módulos do projeto desktop).
 - O frontend em `webapp-01` já aponta o card **SPED → XLSX** para `/tools/sped` (placeholder até a API existir).
 
+## Guia de registros (documentação)
+
+O ficheiro **[sped_engine/cabecalhos_sped.txt](sped_engine/cabecalhos_sped.txt)** descreve os **REG** do layout EFD (blocos 0, 1, 9, B, C, D, E, G, H, K), com **título** e, quando aplicável, **linha de cabeçalho** (`REG | CAMPO | …`) alinhada a `config.py` para exportação.
+
+- É lido pelo Python (`cabecalhos_sped.py`) e pela API (`GET /api/v1/tools/sped/reg-meta`), que alimenta tooltips na UI.
+- Cópia em **`webapp-01/apps/api/src/data/cabecalhos-sped.txt`** — manter **igual** ao ficheiro em `sped_engine` ao alterar o guia.
+
 ## Próximos passos (implementação)
 
 1. `requirements.txt` + estrutura `src/` ou `sped_worker/` com CLI headless.

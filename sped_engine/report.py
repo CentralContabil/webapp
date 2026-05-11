@@ -50,7 +50,16 @@ class DefaultReportBuilder:
         cell.fill = SECTION_FILL
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
 
-    def write_report(self, path, summary, mismatches, link_checks=None, razao=None, cnpj=None):
+    def write_report(
+        self,
+        path,
+        summary,
+        mismatches,
+        link_checks=None,
+        razao=None,
+        cnpj=None,
+        generic_export_regs=None,
+    ):
         wb = load_workbook(path)
         if "RELATORIO" in wb.sheetnames:
             del wb["RELATORIO"]
@@ -104,6 +113,18 @@ class DefaultReportBuilder:
                     info.get("mismatch_count"),
                 ])
         self._format_table(ws, start_row, ws.max_row)
+
+        if generic_export_regs:
+            ws.append([])
+            self._format_section_title(ws, ws.max_row + 1, "Registros exportados com layout genérico (COL_xx)")
+            start_row = ws.max_row + 1
+            ws.append(["REGISTRO", "NOTA"])
+            for reg in generic_export_regs:
+                ws.append([
+                    reg,
+                    "Sem linha em cabecalhos_sped.txt — colunas COL_01, COL_02, … na ordem do arquivo",
+                ])
+            self._format_table(ws, start_row, ws.max_row)
 
         # === Divergências detalhadas ===
         ws.append([])
